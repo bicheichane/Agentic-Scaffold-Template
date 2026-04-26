@@ -74,12 +74,12 @@ Try the Insiders path first; fall back to stable if it does not exist.
 
 1. Read the VS Code user settings file.
 2. Check whether the `~/`-relative agents path is already a key in `chat.agentFilesLocations`.
-3. If it is present, skip — already registered. Report to the user and finish.
-4. If it is absent, **ask the user for confirmation** before making changes. Explain that you want to add the `~/`-relative path to `chat.agentFilesLocations` in their VS Code user settings so agents from this scaffold repo are available in all workspaces. Only proceed if the user explicitly approves.
-5. Once approved, add the `~/`-relative path with value `true`. Preserve all existing entries.
-6. If `chat.agentFilesLocations` does not exist in settings at all, create it with the new entry only.
+3. If present, skip — already registered. Report to the user and finish.
+4. If absent, **ask the user for confirmation** before making changes. Explain that you want to add the path to their VS Code user settings so agents from this scaffold repo are available in all workspaces. Only proceed if the user explicitly approves.
+5. Once approved, add the missing entry with value `true`. Preserve all existing entries.
+6. If `chat.agentFilesLocations` does not exist in settings at all, create the setting with the new entry only.
 7. Write the updated settings back, preserving formatting and all other settings.
-8. Never remove or modify existing entries in `chat.agentFilesLocations`.
+8. Never remove or modify existing entries.
 
 ### Step 3 — Report
 

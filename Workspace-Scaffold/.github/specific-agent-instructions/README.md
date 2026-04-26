@@ -9,3 +9,4 @@ Do not create agent definition files here.
 Default files:
 - `generic-agent.md`
 - `reviewer.md` — shared by all reviewer agents
+- `issue-tracker.md` — platform config for the issue tracker agent
