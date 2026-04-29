@@ -1,63 +1,110 @@
-# Agentic Workflow Template
+# Agentic Scaffold Template
 
-A global agent repository for VS Code. Reference it once in your user settings and the agents are available in every workspace.
-
-## Prerequisites
-
-- [Seamless Agent](https://marketplace.visualstudio.com/items?itemName=jraylan.seamless-agent) VS Code extension (agents rely on its `askUser` tool for user interaction)
+A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `reviewer`, `generic`, `issue-tracker`, `workspace-scaffold`, `worktree-manager` — becomes available in every workspace via Claude Code's native agent picker.
 
 ## Setup
 
-Run the **Initialize** prompt (`.github/prompts/initialize.prompt.md`). It will:
+1. Clone this repo somewhere persistent.
+2. Open the clone in Claude Code.
+3. Run the slash command `/setup-agentic-scaffold`.
 
-1. Verify the Seamless Agent extension is installed.
-2. Register this repository's `.github/agents/` folder in `chat.agentFilesLocations` in your VS Code user settings.
-3. Report what was done and remind you to reload VS Code if needed.
+The slash command runs `scripts/install.mjs`, which symlinks three things into `~/.claude/`:
 
-After that, the agents defined here are available in every workspace.
+- Each `.claude/agents/<name>.md` → `~/.claude/agents/<name>.md` (so the agent picker shows them in every workspace).
+- The repo's `scripts/` directory → `~/.claude/agentic-scaffold/` (so agents can call `scaffold.mjs` and `install.mjs` by an absolute, version-stable path).
+- Each `.claude/commands/<name>.md` → `~/.claude/commands/<name>.md` (so the slash command itself is globally available after the first install).
+
+Re-run `/setup-agentic-scaffold` any time to refresh — the install is idempotent.
 
 ## Usage
 
-Start a conversation with **`starter-agent`**. It routes to sub-agents on request and can describe the available roster if you ask for help.
+Open any workspace in Claude Code and pick an agent from the agent picker. Only a subset are user-invocable; the rest are spawned by `planner` as part of the feature pipeline.
 
-In a new workspace, run `workspace_scaffold_agent` (via `starter-agent`) first. It creates the local instruction stubs that other agents read on startup.
+| Agent | User-invocable | Model | Role |
+|---|---|---|---|
+| `planner` | yes | Opus 4.7 | **Entry point for all feature/bug work.** Drafts the plan, spawns workers in sequence, integrates outcomes. |
+| `coder` | no (planner-spawned only) | Sonnet 4.6 | Implements code per the planner's coder slice. |
+| `qa` | no (planner-spawned only) | Sonnet 4.6 | Implements + runs tests; reports failures with a hypothesis. |
+| `docs` | no (planner-spawned only) | Sonnet 4.6 | Updates project documentation. Audit role flows through `reviewer` instead. |
+| `generic` | yes | Sonnet 4.6 | Ad-hoc / one-off tasks outside the feature pipeline. Can spawn `reviewer` on demand. |
+| `reviewer` | yes (rare) | Opus 4.7 | Adversarial reviewer. Usually invoked by another agent with a scope. |
+| `issue-tracker` | no (planner-spawned only) | Sonnet 4.6 | Frontmatter-Sync bridge to Azure DevOps / GitHub. |
+| `workspace-scaffold` | yes | Sonnet 4.6 | One-shot setup for a new workspace. Run once. |
+| `worktree-manager` | yes | Sonnet 4.6 | Manages git worktrees and launches VS Code Insiders. User-driven only. |
 
-## Agents
+`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `reviewer`, `workspace-scaffold`, `worktree-manager`) cover ad-hoc tasks, one-off reviews, scaffold setup, and worktree management respectively.
 
-| Agent | Entry | Purpose |
-|-------|-------|---------|
-| `starter-agent` | User-invocable | Routes to sub-agents. Ask it for help to see the full roster. |
-| `generic_agent` | Via starter | General-purpose assistant. Can spawn 3 parallel adversarial reviewers on demand. |
-| `reviewer-user` | Via starter | Interactive adversarial reviewer — the user drives the conversation. |
-| `reviewer-gpt5.4` | Via generic | Autonomous adversarial reviewer (non-interactive). |
-| `reviewer-opus4.6` | Via generic | Autonomous adversarial reviewer (non-interactive). |
-| `reviewer-gem3.1` | Via generic | Autonomous adversarial reviewer (non-interactive). |
-| `workspace_scaffold_agent` | Via starter | Creates missing local workspace instruction stubs. |
-| `worktree_manager` | Via starter | Manages git worktrees and opens VS Code Insiders on them. |
+## Per-workspace setup
 
-## Workspace Scaffold
+In a new workspace, run `workspace-scaffold` once. It runs the deterministic script (`scripts/scaffold.mjs init --workspace=<path>`) to create:
 
-The scaffold is **create-missing-only** and targets the active workspace. When files are missing, it creates:
+- `.claude/specific-agent-instructions/` — per-agent override stubs (one for each agent the user can extend).
+- `.claude/specific-agent-instructions/README.md` — auto-generated index.
+- `.claude/epics/.gitkeep` — committed, populated by user + `issue-tracker` over time.
+- A `.gitignore` entry for `.claude/agent-artifacts/` (idempotent: appended only if missing).
 
-| File | Purpose |
-|------|---------|
-| `.github/copilot-instructions.md` | Empty — workspace-level Copilot instructions |
-| `.github/specific-agent-instructions/README.md` | Explains the folder's purpose |
-| `.github/specific-agent-instructions/generic-agent.md` | Local guidance for the generic agent |
-| `.github/specific-agent-instructions/reviewer.md` | Shared by all reviewer agents |
+Then it walks the user through three interactive steps:
 
-Rules:
-- Existing files are always skipped, even when empty.
-- The scaffold never creates local `.github/agents/` files — agent definitions live here, globally.
-- The scaffold never overwrites, deletes, or renames existing files.
+1. **Populating `CLAUDE.md`** — tech stack, paths, commands, conventions.
+2. **Auditing for unexpected files** in `.claude/specific-agent-instructions/`.
+3. **Configuring the issue tracker** — auto-detects Azure DevOps or GitHub from `git remote -v` and writes `.claude/specific-agent-instructions/issue-tracker.md` plus `.vscode/mcp.json`.
 
-## Repository Layout
+`.claude/agent-artifacts/` is **not** created at scaffold time. Agents create it lazily on first write during real feature work.
+
+## How configuration is layered
+
+| File | Scope |
+|---|---|
+| `CLAUDE.md` (workspace root) | Project-wide facts: tech stack, paths, build/test commands, naming conventions. Read by every agent on startup. |
+| `.claude/specific-agent-instructions/<agent>.md` | Per-agent behavior overrides. Read only by the named agent. |
+
+All workspace-specific values (paths, names, commands, tech stack) live in `CLAUDE.md` — never inside the agent files themselves. The agent files describe generic behavior; the per-agent override files exist only for behavior-specific guidance that doesn't fit the cross-cutting `CLAUDE.md`.
+
+## Pipeline state on disk
+
+`planner` orchestrates a single feature lifecycle. All inter-agent state lives on disk in `.claude/agent-artifacts/` (gitignored, transient per work item):
 
 ```
-.github/
-  agents/              Global agent definitions (registered via VS Code settings)
-  prompts/             Reusable prompts (e.g., initialize.prompt.md)
-  copilot-instructions.md   Empty — intentional for this repo
-Workspace-Scaffold/    Fixture used by workspace_scaffold_agent as its source
-docs/                  Working artifacts (review reports, etc.)
+.claude/agent-artifacts/
+  implementation-plan.md           # high-level proposal seen by user
+  implementation-plan-coder.md     # focused slice for coder
+  implementation-plan-tests.md     # focused slice for qa
+  implementation-plan-docs.md      # focused slice for docs
+  coder-outcome.md                 # written by coder, read by planner
+  qa-outcome.md                    # written by qa, read by planner
+  docs-outcome.md                  # written by docs, read by planner
+  feedback/
+    coder/{questions.md, implementation-divergences.md}
+    qa/{questions.md, implementation-divergences.md, failure-report.md}
+    docs/questions.md
+    planner/questions.md
+  reviews/
+    adversarial-review.md          # written by reviewer, overwritten each run
 ```
+
+`planner` runs an **artifact-tree inventory** on every startup — surfaces what it finds to the user, asks whether to resume / start fresh / inspect, and wipes only with explicit confirmation. The tree is the state; the user is the source of truth.
+
+## Repository layout
+
+```
+CLAUDE.md                          # Stub orientation file for this meta-template
+README.md                          # This file
+.claude/
+  agents/                          # Agent definitions installed to ~/.claude/agents/
+  commands/                        # Slash commands installed to ~/.claude/commands/
+    setup-agentic-scaffold.md
+  specific-agent-instructions/     # Empty stubs — committed, demonstrate override surface
+  epics/                           # Empty (.gitkeep) — committed, demonstrates issue-tracker target
+scripts/
+  scaffold.mjs                     # Deterministic part of workspace-scaffold (Node 18+, no deps)
+  install.mjs                      # Symlinks agents, scripts, and slash commands into ~/.claude/
+Workspace-Scaffold/                # Fixture mirroring what end-user workspaces get post-scaffold
+docs/
+  plan.md                          # Merge plan (design history)
+```
+
+## Notes
+
+- Windows: file symlinks need Developer Mode or admin to be created without prompting. `install.mjs` probes for symlink support and prints a clear error if it fails.
+- After `git pull` in this repo, re-run `/setup-agentic-scaffold` to pick up newly added agents.
+- There is no GitHub Copilot integration. The scaffold uses `CLAUDE.md` and Claude Code's native sub-agent conventions; agents communicate in plain conversation without special markers or custom tooling.
