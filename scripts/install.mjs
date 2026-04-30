@@ -217,6 +217,64 @@ async function createSymlink(linkPath, sourcePath, isDir, { dryRun, force }) {
   }
 }
 
+async function ensureDefaultAgent(settingsPath, dryRun) {
+  let settings = {};
+  if (await exists(settingsPath)) {
+    const raw = await fs.readFile(settingsPath, 'utf8');
+    try {
+      settings = JSON.parse(raw);
+    } catch (err) {
+      console.error(`warning: could not parse ${settingsPath}: ${err.message}`);
+      console.error('  skipping default-agent configuration to avoid data loss');
+      return false;
+    }
+  }
+  if (settings.agent === 'planner') {
+    console.log(`already set:      ${settingsPath} -> agent = "planner"`);
+    return false;
+  }
+  if (dryRun) {
+    console.log(`would set:        ${settingsPath} -> agent = "planner"`);
+    return true;
+  }
+  settings.agent = 'planner';
+  await fs.writeFile(settingsPath, JSON.stringify(settings, null, '\t') + '\n');
+  console.log(`set:              ${settingsPath} -> agent = "planner"`);
+  return true;
+}
+
+async function removeDefaultAgent(settingsPath, dryRun) {
+  if (!(await exists(settingsPath))) {
+    console.log(`no settings:      ${settingsPath}`);
+    return false;
+  }
+  let raw;
+  try {
+    raw = await fs.readFile(settingsPath, 'utf8');
+  } catch {
+    return false;
+  }
+  let settings;
+  try {
+    settings = JSON.parse(raw);
+  } catch {
+    console.log(`unparseable:      ${settingsPath}, skipped`);
+    return false;
+  }
+  if (settings.agent !== 'planner') {
+    console.log(`agent not ours:   ${settingsPath} -> agent = ${JSON.stringify(settings.agent)}`);
+    return false;
+  }
+  if (dryRun) {
+    console.log(`would remove:     ${settingsPath} -> agent key`);
+    return true;
+  }
+  delete settings.agent;
+  await fs.writeFile(settingsPath, JSON.stringify(settings, null, '\t') + '\n');
+  console.log(`removed:          ${settingsPath} -> agent key`);
+  return true;
+}
+
 // Remove a symlink only if it points into the repo. Never deletes real files.
 async function removeOurSymlink(linkPath, dryRun) {
   const st = await lstatOrNull(linkPath);
@@ -287,6 +345,10 @@ async function cmdInstall(target, dryRun, force) {
       await createSymlink(linkPath, sourcePath, false, { dryRun, force });
     }
   }
+
+  // Default agent setting in settings.json.
+  const settingsPath = path.join(target, 'settings.json');
+  await ensureDefaultAgent(settingsPath, dryRun);
 }
 
 async function cmdUninstall(target, dryRun) {
@@ -301,6 +363,10 @@ async function cmdUninstall(target, dryRun) {
 
   // Per-file command links: same shape as agents.
   await removeRepoSymlinksFromDir(commandsTargetDir, 'commands', dryRun);
+
+  // Default agent setting.
+  const settingsPath = path.join(target, 'settings.json');
+  await removeDefaultAgent(settingsPath, dryRun);
 }
 
 async function removeRepoSymlinksFromDir(dir, label, dryRun) {
@@ -409,6 +475,28 @@ async function cmdStatus(target) {
           break;
       }
     }
+  }
+
+  console.log('');
+
+  // Default agent setting.
+  const settingsPath = path.join(target, 'settings.json');
+  if (await exists(settingsPath)) {
+    try {
+      const raw = await fs.readFile(settingsPath, 'utf8');
+      const settings = JSON.parse(raw);
+      if (settings.agent === 'planner') {
+        console.log(`default agent:    planner (set in ${settingsPath})`);
+      } else if (settings.agent) {
+        console.log(`default agent:    ${settings.agent} (not planner; in ${settingsPath})`);
+      } else {
+        console.log(`default agent:    not set in ${settingsPath}`);
+      }
+    } catch {
+      console.log(`default agent:    could not parse ${settingsPath}`);
+    }
+  } else {
+    console.log(`default agent:    ${settingsPath} does not exist`);
   }
 }
 

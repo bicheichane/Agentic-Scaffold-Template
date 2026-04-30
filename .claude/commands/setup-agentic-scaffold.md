@@ -16,6 +16,7 @@ After both steps complete, report:
 - Which agents are now linked into `~/.claude/agents/`.
 - Whether `~/.claude/agentic-scaffold/` and `~/.claude/commands/setup-agentic-scaffold.md` are correctly linked.
 - What the scaffold step created or skipped in the current workspace.
+- Whether `~/.claude/settings.json` was updated to set the default agent to `planner`.
 - Any warnings or errors from either script.
 
 Both scripts are idempotent — re-running is safe and is how the user pulls in newly added agents or refreshes the workspace scaffold.
