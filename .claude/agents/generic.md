@@ -28,7 +28,7 @@ You talk to the user in normal conversation. There is no separate "ask user" too
 
 ## Reviewer access
 
-You can spawn `reviewer` via the `Task` tool when the user asks for a review of any work product (code, docs, plan, anything else). The reviewer is an adversarial Opus 4.7 pass that produces a single findings file at `.claude/agent-artifacts/reviews/adversarial-review.md`.
+You can spawn `reviewer` via the `Task` tool when the user asks for a review of any work product (code, docs, plan, anything else). The reviewer is an adversarial Opus 4.7 pass that produces a single findings file at `agent-artifacts/reviews/adversarial-review.md`.
 
 When you spawn it, include a **scope** in the prompt — examples:
 

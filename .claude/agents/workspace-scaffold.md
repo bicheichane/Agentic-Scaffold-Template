@@ -26,14 +26,14 @@ This single command, idempotently and create-missing-only:
 - Creates `.claude/specific-agent-instructions/` with empty stubs for every agent in the merged roster (`generic.md`, `planner.md`, `coder.md`, `qa.md`, `docs.md`, `reviewer.md`, `issue-tracker.md`, `worktree-manager.md`). The `worktree-manager.md` stub is pre-populated with template comments instructing the user to fill in their environment-specific worktree base directory.
 - Creates `.claude/specific-agent-instructions/README.md` (auto-generated index).
 - Creates `.claude/epics/.gitkeep`.
-- Appends `.claude/agent-artifacts/` to `.gitignore` per this contract:
-  1. If `.gitignore` does not exist, create it containing `.claude/agent-artifacts/` followed by a trailing newline.
-  2. If `.gitignore` exists, check whether any line (after stripping leading `/` and surrounding whitespace) equals `.claude/agent-artifacts/`. If yes, do nothing.
-  3. If no matching line exists, ensure the file ends with a newline (append one if missing), then append `.claude/agent-artifacts/` followed by a trailing newline.
+- Appends `agent-artifacts/` to `.gitignore` per this contract:
+  1. If `.gitignore` does not exist, create it containing `agent-artifacts/` followed by a trailing newline.
+  2. If `.gitignore` exists, check whether any line (after stripping leading `/` and surrounding whitespace) equals `agent-artifacts/`. If yes, do nothing.
+  3. If no matching line exists, ensure the file ends with a newline (append one if missing), then append `agent-artifacts/` followed by a trailing newline.
 
 The script reports `created` / `exists, skipped` per file. Re-runs are safe.
 
-`.claude/agent-artifacts/` is **not** created at scaffold time. Agents create it lazily on first write. Each agent that writes to an artifact path is responsible for `mkdir -p`-ing its parent directory before writing.
+`agent-artifacts/` is **not** created at scaffold time. Agents create it lazily on first write. Each agent that writes to an artifact path is responsible for `mkdir -p`-ing its parent directory before writing.
 
 To obtain the canonical expected-files roster (used in the unexpected-files audit below):
 
