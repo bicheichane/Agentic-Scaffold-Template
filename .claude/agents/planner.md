@@ -1,4 +1,5 @@
 ---
+name: planner
 description: Per-feature orchestrator and software architect. Owns the lifecycle of one feature — drafts the plan, spawns coder/qa/docs in sequence, integrates outcomes, persists state to disk. Entry point for all feature/bug work.
 tools: Read, Write, Edit, Glob, Grep, Bash, Task
 model: inherit

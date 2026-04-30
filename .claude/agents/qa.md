@@ -1,4 +1,5 @@
 ---
+name: qa
 description: Software Development Engineer in Test. Implements and runs tests per the planner-supplied tests slice; reports failures with a hypothesis. Planner-spawned only.
 tools: Read, Write, Edit, Glob, Grep, Bash, Task
 model: sonnet

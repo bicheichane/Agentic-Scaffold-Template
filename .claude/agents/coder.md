@@ -1,4 +1,5 @@
 ---
+name: coder
 description: Software engineer that implements features and bug fixes per the planner-supplied coder slice. Planner-spawned only.
 tools: Read, Write, Edit, Glob, Grep, Bash, Task
 model: sonnet

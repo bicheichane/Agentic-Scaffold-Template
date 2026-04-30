@@ -1,4 +1,5 @@
 ---
+name: reviewer
 description: Adversarial reviewer. Reviews implementation diffs, plans, tests, or docs against specs for spec violations, code smells, baked-in assumptions, and quality concerns. Invocable with a scope by any of planner, coder, qa, docs, or generic — and rarely by the user directly.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: inherit

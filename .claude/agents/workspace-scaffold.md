@@ -1,4 +1,5 @@
 ---
+name: workspace-scaffold
 description: One-shot scaffold for an end-user workspace. Creates `.claude/specific-agent-instructions/`, `.claude/epics/.gitkeep`, the `.gitignore` entry for agent artifacts, and the auto-generated README via the deterministic script. Then runs the interactive layer — populating `CLAUDE.md`, auditing for unexpected files, and configuring the issue tracker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet

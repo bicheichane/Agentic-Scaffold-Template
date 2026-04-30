@@ -1,4 +1,5 @@
 ---
+name: generic
 description: General-purpose assistant for ad-hoc and one-off tasks that fall outside the planner-orchestrated feature pipeline. Can spawn the reviewer on demand.
 tools: Read, Write, Edit, Glob, Grep, Bash, Task
 model: sonnet

@@ -1,4 +1,5 @@
 ---
+name: issue-tracker
 description: Queries, creates, triages, and updates work items on the workspace's configured issue tracker (Azure DevOps, GitHub, etc.). Bridges local Markdown frontmatter with the remote tracker via the Frontmatter Sync lifecycle. Planner-spawned only.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet

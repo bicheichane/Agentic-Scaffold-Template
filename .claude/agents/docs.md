@@ -1,4 +1,5 @@
 ---
+name: docs
 description: Technical writer that updates project documentation per the planner-supplied docs slice. Single-focus on documentation accuracy. Planner-spawned only.
 tools: Read, Write, Edit, Glob, Grep, Bash, Task
 model: sonnet
