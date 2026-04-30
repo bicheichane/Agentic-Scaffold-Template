@@ -1,6 +1,6 @@
 # Agentic Scaffold Template
 
-A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `reviewer`, `generic`, `issue-tracker`, `workspace-scaffold`, `worktree-manager` — becomes available in every workspace via Claude Code's native agent picker.
+A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `reviewer`, `generic`, `issue-tracker`, `workspace-scaffold` — becomes available in every workspace via Claude Code's native agent picker.
 
 ## Setup
 
@@ -30,9 +30,8 @@ Open any workspace in Claude Code and pick an agent from the agent picker. Only 
 | `reviewer` | yes (rare) | Opus 4.7 | Adversarial reviewer. Usually invoked by another agent with a scope. |
 | `issue-tracker` | no (planner-spawned only) | Sonnet 4.6 | Frontmatter-Sync bridge to Azure DevOps / GitHub. |
 | `workspace-scaffold` | yes | Sonnet 4.6 | One-shot setup for a new workspace. Run once. |
-| `worktree-manager` | yes | Sonnet 4.6 | Manages git worktrees and launches VS Code Insiders. User-driven only. |
 
-`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `reviewer`, `workspace-scaffold`, `worktree-manager`) cover ad-hoc tasks, one-off reviews, scaffold setup, and worktree management respectively.
+`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `reviewer`, `workspace-scaffold`) cover ad-hoc tasks, one-off reviews and scaffold setup respectively.
 
 ## Per-workspace setup
 
