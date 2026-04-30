@@ -58,7 +58,7 @@ Do not create agent definition files here.
 Files:
 `;
 
-const GITIGNORE_ENTRY = '.claude/agent-artifacts/';
+const GITIGNORE_ENTRY = 'agent-artifacts/';
 
 function parseArgs(argv) {
   const args = { command: null, workspace: process.cwd(), dryRun: false };

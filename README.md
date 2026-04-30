@@ -41,7 +41,7 @@ In a new workspace, run `workspace-scaffold` once. It runs the deterministic scr
 - `.claude/specific-agent-instructions/` — per-agent override stubs (one for each agent the user can extend).
 - `.claude/specific-agent-instructions/README.md` — auto-generated index.
 - `.claude/epics/.gitkeep` — committed, populated by user + `issue-tracker` over time.
-- A `.gitignore` entry for `.claude/agent-artifacts/` (idempotent: appended only if missing).
+- A `.gitignore` entry for `agent-artifacts/` (idempotent: appended only if missing).
 
 Then it walks the user through three interactive steps:
 
@@ -49,7 +49,7 @@ Then it walks the user through three interactive steps:
 2. **Auditing for unexpected files** in `.claude/specific-agent-instructions/`.
 3. **Configuring the issue tracker** — auto-detects Azure DevOps or GitHub from `git remote -v` and writes `.claude/specific-agent-instructions/issue-tracker.md` plus `.vscode/mcp.json`.
 
-`.claude/agent-artifacts/` is **not** created at scaffold time. Agents create it lazily on first write during real feature work.
+`agent-artifacts/` is **not** created at scaffold time. Agents create it lazily on first write during real feature work.
 
 ## How configuration is layered
 
@@ -62,24 +62,23 @@ All workspace-specific values (paths, names, commands, tech stack) live in `CLAU
 
 ## Pipeline state on disk
 
-`planner` orchestrates a single feature lifecycle. All inter-agent state lives on disk in `.claude/agent-artifacts/` (gitignored, transient per work item):
+`planner` orchestrates a single feature lifecycle. All inter-agent state lives on disk in `agent-artifacts/` (gitignored, transient per work item):
 
 ```
-.claude/agent-artifacts/
-  implementation-plan.md           # high-level proposal seen by user
-  implementation-plan-coder.md     # focused slice for coder
-  implementation-plan-tests.md     # focused slice for qa
-  implementation-plan-docs.md      # focused slice for docs
-  coder-outcome.md                 # written by coder, read by planner
-  qa-outcome.md                    # written by qa, read by planner
-  docs-outcome.md                  # written by docs, read by planner
+agent-artifacts/
+  implementation-plan.md                        # high-level proposal seen by user
+  implementation-plan-{step}{node}.md           # one coder slice per execution-graph node (e.g. 1a, 1b, 2a)
+  implementation-plan-tests.md                  # focused slice for qa
+  implementation-plan-docs.md                   # focused slice for docs
+  coder-outcome-{step}{node}.md                 # one outcome per coder node; written by coder, read by planner
+  qa-outcome.md                                 # written by qa, read by planner
+  docs-outcome.md                               # written by docs, read by planner
   feedback/
-    coder/{questions.md, implementation-divergences.md}
-    qa/{questions.md, implementation-divergences.md, failure-report.md}
-    docs/questions.md
+    coder/implementation-divergences-{step}{node}.md  # per-node; written by coder when divergences occur
+    qa/failure-report.md                        # written by qa when tests fail
     planner/questions.md
   reviews/
-    adversarial-review.md          # written by reviewer, overwritten each run
+    adversarial-review.md                       # written by reviewer, overwritten each run
 ```
 
 `planner` runs an **artifact-tree inventory** on every startup — surfaces what it finds to the user, asks whether to resume / start fresh / inspect, and wipes only with explicit confirmation. The tree is the state; the user is the source of truth.

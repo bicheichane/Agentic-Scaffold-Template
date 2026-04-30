@@ -19,7 +19,7 @@ It is **not** a workload project. There is no production tech stack, no source/t
 
 Contributors can dogfood agent invocations from inside this repo: open it in Claude Code and pick `planner` (or any other user-invocable agent) from the agent picker. The committed-but-empty stubs under `.claude/specific-agent-instructions/` give you a place to drop repo-specific overrides without bootstrapping a separate workspace first.
 
-`.claude/agent-artifacts/` is gitignored — agents will create it lazily on first write. Do not commit anything inside it.
+`agent-artifacts/` is gitignored — agents will create it lazily on first write. Do not commit anything inside it.
 
 ## Install workflow
 
