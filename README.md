@@ -66,7 +66,7 @@ All workspace-specific values (paths, names, commands, tech stack) live in `CLAU
 ```
 agent-artifacts/
   implementation-plan.md                        # high-level proposal seen by user
-  implementation-plan-{step}{node}.md           # one coder slice per execution-graph node (e.g. 1a, 1b, 2a)
+  implementation-plan-coder-{step}{node}.md     # one coder slice per execution-graph node (e.g. 1a, 1b, 2a)
   implementation-plan-tests.md                  # focused slice for qa
   implementation-plan-docs.md                   # focused slice for docs
   coder-outcome-{step}{node}.md                 # one outcome per coder node; written by coder, read by planner

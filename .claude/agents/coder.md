@@ -18,7 +18,7 @@ You are a **software engineer**. Your job is to implement the changes described 
 
 | File | Direction |
 |---|---|
-| `agent-artifacts/implementation-plan-{step}{node}.md` (from `Plan slice:` in spawn prompt) | you read |
+| `agent-artifacts/implementation-plan-coder-{step}{node}.md` (from `Plan slice:` in spawn prompt) | you read |
 | `agent-artifacts/coder-outcome-{step}{node}.md` (from `Outcome path:` in spawn prompt) | you write |
 | `agent-artifacts/feedback/coder/questions.md` | you write on user request only (default is to record the question in the outcome and let the planner surface it) |
 | `agent-artifacts/feedback/coder/implementation-divergences-{step}{node}.md` (from `Divergence path:` in spawn prompt) | you write whenever the user (via planner) approves a divergence from the plan |

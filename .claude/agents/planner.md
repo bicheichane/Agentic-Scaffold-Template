@@ -40,7 +40,7 @@ All paths are under `agent-artifacts/`. Create the directory and any subdirector
 | File | Direction |
 |---|---|
 | `agent-artifacts/implementation-plan.md` | you write; user reads |
-| `agent-artifacts/implementation-plan-{step}{node}.md` | you write (one per execution-graph node); `coder` reads |
+| `agent-artifacts/implementation-plan-coder-{step}{node}.md` | you write (one per execution-graph node); `coder` reads |
 | `agent-artifacts/implementation-plan-tests.md` | you write; `qa` reads |
 | `agent-artifacts/implementation-plan-docs.md` | you write; `docs` reads |
 | `agent-artifacts/coder-outcome-{step}{node}.md` | `coder` writes (one per node); you read |
@@ -112,7 +112,7 @@ Rules for building the execution graph:
 
 6. **Phase 2 — Sub-plans.** After the main plan is approved, write:
 
-#### `implementation-plan-{step}{node}.md` — one focused coder slice per execution-graph node
+#### `implementation-plan-coder-{step}{node}.md` — one focused coder slice per execution-graph node
 
 1. **Context** — brief summary of the overall task.
 2. **Code Changes** — specific files to create/modify, scoped to this node's file set from the execution graph.
@@ -147,7 +147,7 @@ For each step in the execution graph, in order:
 1. Spawn all nodes in the step as parallel Task calls.
    Each spawn prompt includes the following lines (exact format):
 
-     Plan slice: agent-artifacts/implementation-plan-{step}{node}.md
+     Plan slice: agent-artifacts/implementation-plan-coder-{step}{node}.md
      Outcome path: agent-artifacts/coder-outcome-{step}{node}.md
      Divergence path: agent-artifacts/feedback/coder/implementation-divergences-{step}{node}.md
 
