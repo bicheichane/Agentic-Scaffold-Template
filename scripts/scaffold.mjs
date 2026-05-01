@@ -29,23 +29,11 @@ const STUBS = [
   { name: 'coder.md', purpose: '' },
   { name: 'qa.md', purpose: '' },
   { name: 'docs.md', purpose: '' },
-  { name: 'reviewer.md', purpose: '' },
+  { name: 'plan-reviewer.md', purpose: '' },
+  { name: 'code-reviewer.md', purpose: '' },
+  { name: 'alignment-reviewer.md', purpose: '' },
   { name: 'issue-tracker.md', purpose: 'platform config (azure-devops, github, etc.)' },
-  { name: 'worktree-manager.md', purpose: 'environment-specific worktree base directory' },
 ];
-
-const WORKTREE_MANAGER_TEMPLATE = `<!--
-  Environment-specific config for worktree-manager.
-
-  Fill in your local worktree base directory below. The agent reads this on
-  startup; if this file is empty or still in stub form, the agent will
-  surface the gap to you in the conversation rather than guessing a path.
-
-  Example:
-
-      worktree-base-dir: /Users/yourname/Documents/Worktrees
--->
-`;
 
 const README_HEADER = `# Specific Agent Instructions
 
@@ -197,8 +185,7 @@ async function cmdInit(workspace, dryRun) {
 
   for (const stub of STUBS) {
     const target = path.join(saiDir, stub.name);
-    const contents = stub.name === 'worktree-manager.md' ? WORKTREE_MANAGER_TEMPLATE : '';
-    await createIfMissing(target, contents, dryRun);
+    await createIfMissing(target, '', dryRun);
   }
 
   await createIfMissing(path.join(epicsDir, '.gitkeep'), '', dryRun);

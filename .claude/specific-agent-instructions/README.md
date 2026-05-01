@@ -7,11 +7,12 @@ Leave files empty when no extra local guidance is needed.
 Do not create agent definition files here.
 
 Files:
+- `alignment-reviewer.md`
+- `code-reviewer.md`
 - `coder.md`
 - `docs.md`
 - `generic.md`
 - `issue-tracker.md` — platform config (azure-devops, github, etc.)
+- `plan-reviewer.md`
 - `planner.md`
 - `qa.md`
-- `reviewer.md`
-- `worktree-manager.md` — environment-specific worktree base directory

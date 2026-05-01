@@ -4,13 +4,15 @@
 // Wires this meta-template repo into the user's ~/.claude/ via symlinks so
 // that pulling new commits in the repo auto-propagates to Claude Code.
 //
-// Three kinds of links:
+// Four kinds of links:
 //   1. Per-file: <repo>/.claude/agents/*.md        ->  ~/.claude/agents/<basename>
 //      (per-file because ~/.claude/agents/ may already host unrelated agents)
 //   2. Directory: <repo>/scripts/                  ->  ~/.claude/agentic-scaffold/
 //      (one link, so future scripts/ additions auto-publish)
 //   3. Per-file: <repo>/.claude/commands/*.md      ->  ~/.claude/commands/<basename>
 //      (per-file because ~/.claude/commands/ may already host unrelated commands)
+//   4. Directory: <repo>/.claude/agents/skills/agentic-template/  ->  ~/.claude/agents/skills/agentic-template/
+//      (one link for the framework namespace, so future skills/scopes auto-publish)
 //
 // Subcommands:
 //   install    Create both kinds of symlinks.
@@ -38,7 +40,9 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const SOURCE_AGENTS_DIR = path.join(REPO_ROOT, '.claude', 'agents');
 const SOURCE_SCRIPTS_DIR = path.join(REPO_ROOT, 'scripts');
 const SOURCE_COMMANDS_DIR = path.join(REPO_ROOT, '.claude', 'commands');
+const SOURCE_SKILLS_DIR = path.join(SOURCE_AGENTS_DIR, 'skills', 'agentic-template');
 const SCAFFOLD_LINK_NAME = 'agentic-scaffold';
+const SKILLS_NAMESPACE = 'agentic-template';
 const AGENT_FILE_SUFFIX = '.md';
 const COMMAND_FILE_SUFFIX = '.md';
 
@@ -313,6 +317,25 @@ async function cmdInstall(target, dryRun, force) {
 
   await probeFileSymlinkSupport(agentsTargetDir, dryRun);
 
+  // Clean up dangling symlinks that pointed into our repo (handles agent renames/deletions).
+  if (await exists(agentsTargetDir)) {
+    for (const entry of await fs.readdir(agentsTargetDir)) {
+      const entryPath = path.join(agentsTargetDir, entry);
+      try {
+        const rawTarget = await fs.readlink(entryPath);
+        try {
+          await fs.stat(entryPath); // resolves fine → link is live, skip
+        } catch {
+          // Dangling symlink. Check if the raw target was inside our repo.
+          if (rawTarget.startsWith(SOURCE_AGENTS_DIR + path.sep) || rawTarget === SOURCE_AGENTS_DIR) {
+            if (!dryRun) await fs.unlink(entryPath);
+            console.log(`removed stale agent link: ${entryPath} -> ${rawTarget}`);
+          }
+        }
+      } catch { /* not a symlink, skip */ }
+    }
+  }
+
   // Per-file agent links.
   const agents = await listSourceAgents();
   if (agents.length === 0) {
@@ -330,6 +353,18 @@ async function cmdInstall(target, dryRun, force) {
 
   // Single directory link for scripts/.
   await createSymlink(scaffoldLinkPath, SOURCE_SCRIPTS_DIR, true, { dryRun, force });
+
+  // Skills namespace directory link.
+  const skillsParentDir = path.join(agentsTargetDir, 'skills');
+  const skillsLinkPath = path.join(skillsParentDir, SKILLS_NAMESPACE);
+  if (await exists(SOURCE_SKILLS_DIR)) {
+    if (!dryRun) {
+      await fs.mkdir(skillsParentDir, { recursive: true });
+    }
+    await createSymlink(skillsLinkPath, SOURCE_SKILLS_DIR, true, { dryRun, force });
+  } else {
+    console.log(`no skills to link (source dir missing): ${SOURCE_SKILLS_DIR}`);
+  }
 
   // Per-file slash command links.
   const commands = await listSourceCommands();
@@ -360,6 +395,10 @@ async function cmdUninstall(target, dryRun) {
   await removeRepoSymlinksFromDir(agentsTargetDir, 'agents', dryRun);
 
   await removeOurSymlink(scaffoldLinkPath, dryRun);
+
+  // Skills namespace link.
+  const skillsLinkPath = path.join(agentsTargetDir, 'skills', SKILLS_NAMESPACE);
+  await removeOurSymlink(skillsLinkPath, dryRun);
 
   // Per-file command links: same shape as agents.
   await removeRepoSymlinksFromDir(commandsTargetDir, 'commands', dryRun);
@@ -447,6 +486,29 @@ async function cmdStatus(target) {
     case 'real':
       console.log(`scaffold link:    real file/dir at ${scaffoldLinkPath} (not a symlink)`);
       break;
+  }
+  console.log('');
+
+  // Skills namespace link.
+  const skillsLinkPath = path.join(agentsTargetDir, 'skills', SKILLS_NAMESPACE);
+  if (await exists(SOURCE_SKILLS_DIR)) {
+    const skillsState = await classify(skillsLinkPath, SOURCE_SKILLS_DIR);
+    switch (skillsState.kind) {
+      case 'correct':
+        console.log(`skills linked:    ${skillsLinkPath} -> ${SOURCE_SKILLS_DIR}`);
+        break;
+      case 'missing':
+        console.log(`skills link:      not present at ${skillsLinkPath}`);
+        break;
+      case 'wrong-symlink':
+        console.log(`skills link:      wrong target at ${skillsLinkPath} -> ${skillsState.resolved ?? '<unreadable>'}`);
+        break;
+      case 'real':
+        console.log(`skills link:      real file/dir at ${skillsLinkPath} (not a symlink)`);
+        break;
+    }
+  } else {
+    console.log(`skills source:    ${SOURCE_SKILLS_DIR} (not found)`);
   }
   console.log('');
 

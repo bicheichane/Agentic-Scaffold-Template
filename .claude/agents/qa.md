@@ -25,7 +25,7 @@ You are a strict, analytical **Software Development Engineer in Test (SDET)**. Y
 | `agent-artifacts/feedback/qa/questions.md` | you write on user request only |
 | `agent-artifacts/feedback/qa/implementation-divergences.md` | you write whenever the user (via planner) approves a divergence |
 | `agent-artifacts/feedback/qa/failure-report.md` | you write whenever tests fail |
-| `agent-artifacts/reviews/adversarial-review.md` | `reviewer` writes if you spawn it |
+| `agent-artifacts/reviews/code-review-test-quality.md` | `code-reviewer` writes if you spawn it |
 
 `mkdir -p` parent directories before writing.
 
@@ -72,9 +72,22 @@ Always write `agent-artifacts/feedback/qa/failure-report.md` with:
 
 Do not attempt to fix logic or spec bugs yourself; that is `coder`'s or `planner`'s job.
 
-### 4. (Optional) Self-review via `reviewer`
+### 4. (Optional) Self-review via `code-reviewer`
 
-If the test pass is non-trivial, you may spawn `reviewer` via `Task` with scope `"test coverage, correctness"` and pointers to the changed test files. The reviewer writes to `agent-artifacts/reviews/adversarial-review.md`. Read it, summarize load-bearing findings into your outcome.
+If the test pass is non-trivial, you may spawn `code-reviewer` via `Task` with the `test-quality` skill. To discover available skills, run:
+
+```
+node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=qa
+```
+
+Include in the spawn prompt:
+
+```
+Scope slug: test-quality
+Output path: agent-artifacts/reviews/code-review-test-quality.md
+```
+
+Plus pointers to the changed test files. The code-reviewer loads the `test-quality` skill and reviews your tests for coverage gaps, assertion quality, isolation, flakiness risk, and overspecification. Read the output, summarize load-bearing findings into your outcome.
 
 ### 5. Write outcome file
 

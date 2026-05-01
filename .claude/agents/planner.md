@@ -49,7 +49,9 @@ All paths are under `agent-artifacts/`. Create the directory and any subdirector
 | `agent-artifacts/feedback/planner/questions.md` | you write on user request only |
 | `agent-artifacts/feedback/coder/implementation-divergences-{step}{node}.md` | `coder` writes (one per node) when divergences occur |
 | `agent-artifacts/feedback/qa/failure-report.md` | `qa` writes when tests fail |
-| `agent-artifacts/reviews/adversarial-review.md` | `reviewer` writes; overwritten each invocation |
+| `agent-artifacts/reviews/plan-review.md` | `plan-reviewer` writes; overwritten each invocation |
+| `agent-artifacts/reviews/code-review-{slug}.md` | `code-reviewer` writes (one per skill slug); `{slug}` from spawn prompt |
+| `agent-artifacts/reviews/alignment-review.md` | `alignment-reviewer` writes; overwritten each invocation |
 | `.claude/epics/<feature-slug>/...` | committed; `issue-tracker` lifecycle target |
 
 **Note:** Worker agents (`coder`, `qa`, `docs`) own additional artifacts under `agent-artifacts/feedback/<agent>/` (questions, divergences, failure reports). You read these when consuming outcome files; see the worker agents' own definitions for full paths.
@@ -136,9 +138,9 @@ Each slice is self-contained: it duplicates any shared context (types, conventio
 
 If the user wants the feature tracked on the configured issue tracker, spawn `issue-tracker` (via the `Task` tool) with a clear instruction set: scaffold the remote items for this feature, inject the resulting remote IDs into the local frontmatter under `.claude/epics/<feature-slug>/`. The `issue-tracker` agent owns its own platform config and lifecycle — you supply only the scope.
 
-### 3. (Optional) Spawn `reviewer` for plan-completeness audit
+### 3. (Optional) Spawn `plan-reviewer` for plan-completeness audit
 
-If you want an adversarial pass on the plan before code is written, spawn `reviewer` (via `Task`) with scope `"Review plan completeness, architectural alignment"` and the path `agent-artifacts/implementation-plan.md`. After the reviewer returns, read `agent-artifacts/reviews/adversarial-review.md` and surface findings to the user. Update the plan if approved.
+If you want an adversarial pass on the plan before code is written, spawn `plan-reviewer` (via `Task`) with the path `agent-artifacts/implementation-plan.md` and any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc). After it returns, read `agent-artifacts/reviews/plan-review.md` and surface findings to the user. Update the plan if approved.
 
 ### 4. Spawn `coder` — multi-step dispatch
 
@@ -158,17 +160,50 @@ For each step in the execution graph, in order:
    Other completed nodes in the same step are kept (their outcomes persist on disk).
 5. Proceed to the next step.
 
+### 4.5. (Optional) Spawn `code-reviewer` swarm
+
+After all coder steps complete, you may spawn a parallel swarm of `code-reviewer` instances to review the implementation. Each instance loads a different skill and writes to its own output file.
+
+To discover available skills, run:
+
+```
+node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=planner
+```
+
+Choose which skills to include based on the feature's nature:
+- **Trivial change:** `spec` only (plan↔code fidelity check)
+- **Standard feature:** `spec` + `patterns`
+- **Security-sensitive:** `spec` + `patterns` + `security`
+- **Critical/large feature:** all available skills
+
+For each chosen skill, spawn one `code-reviewer` via Task with:
+
+```
+Scope slug: {slug}
+Output path: agent-artifacts/reviews/code-review-{slug}.md
+```
+
+Plus pointers to the changed files (from coder-outcome files-touched lists) and any relevant plan context.
+
+All instances in the swarm can be spawned as parallel Task calls. After all return, read each `code-review-{slug}.md` file and surface findings to the user. The user decides which findings to act on.
+
 ### 5. Spawn `qa`
 
 Spawn `qa` via `Task`. It reads `implementation-plan-tests.md`, writes `qa-outcome.md`, and (if tests fail) `feedback/qa/failure-report.md`. When it returns, read both files. Apply the failure-routing rules below if tests failed.
 
 ### 6. Spawn `docs`
 
-Spawn `docs` via `Task`. It reads `implementation-plan-docs.md`, writes `docs-outcome.md`, and may invoke `reviewer` with docs-accuracy scope. When it returns, read `docs-outcome.md`.
+Spawn `docs` via `Task`. It reads `implementation-plan-docs.md`, writes `docs-outcome.md`, and may invoke `code-reviewer` with `Scope slug: docs-accuracy` for self-review. When it returns, read `docs-outcome.md`.
 
-### 7. (Optional) Final reviewer pass
+### 7. (Optional) Spawn `alignment-reviewer` for final pass
 
-Spawn `reviewer` with scope `"End-to-end audit: code, tests, docs alignment with plan"` if a comprehensive sign-off is wanted.
+If a comprehensive cross-artifact consistency check is wanted, spawn `alignment-reviewer` (via `Task`) with pointers to all pipeline artifacts:
+- `agent-artifacts/implementation-plan.md` and all coder/test/docs slices
+- `agent-artifacts/coder-outcome-*.md` files
+- `agent-artifacts/feedback/coder/implementation-divergences-*.md` (if any)
+- The actual source/test/doc files referenced by the outcomes
+
+After it returns, read `agent-artifacts/reviews/alignment-review.md` and surface findings to the user.
 
 ### 8. Report completion
 
@@ -194,11 +229,28 @@ Use the `Task` tool. Sub-agents run autonomously and cannot ask the user mid-exe
 - Any scope or constraint the user added during the conversation.
 - A reminder that the worker writes its outcome file and returns a one-paragraph summary plus the outcome path.
 
-When you spawn `reviewer`, include:
+### Reviewers
 
-- The scope string (e.g., `"code quality, regressions"`).
-- Pointers to the files in scope (diff paths, plan files, etc.).
-- A reminder that the reviewer writes to `agent-artifacts/reviews/adversarial-review.md`.
+Three reviewer tiers are available, each with its own output path. To discover available skills and output paths, run:
+
+```
+node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=planner
+```
+
+When you spawn `plan-reviewer`:
+- Pass the path to the plan being reviewed (`agent-artifacts/implementation-plan.md`)
+- Pass any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc)
+- It writes to `agent-artifacts/reviews/plan-review.md`
+
+When you spawn `code-reviewer` (one or more parallel instances):
+- Each spawn prompt must include `Scope slug:` and `Output path:` lines
+- Pass pointers to the files to review (changed files from coder-outcome files-touched)
+- Pass any relevant plan context
+- Each instance writes to its own `agent-artifacts/reviews/code-review-{slug}.md`
+
+When you spawn `alignment-reviewer`:
+- Pass pointers to all pipeline artifacts (plan files, outcome files, divergence files, source/test/doc files)
+- It writes to `agent-artifacts/reviews/alignment-review.md`
 
 ### Explore (codebase discovery)
 
@@ -217,7 +269,7 @@ Use `Explore` agents for codebase discovery at any point in the lifecycle — pl
 
 **Parallelism:** When researching multiple independent questions, spawn multiple Explore agents in a single message so they run concurrently (e.g., "find the data model" and "find the API routes" as separate spawns).
 
-**Out of scope for Explore:** Do not use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. Use `reviewer` for those tasks.
+**Out of scope for Explore:** Do not use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. Use the appropriate reviewer tier for those tasks — `plan-reviewer` for plan auditing, `code-reviewer` for code review, `alignment-reviewer` for cross-artifact consistency.
 
 ## Communication discipline
 

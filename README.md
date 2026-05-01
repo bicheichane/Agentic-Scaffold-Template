@@ -1,6 +1,6 @@
 # Agentic Scaffold Template
 
-A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `reviewer`, `generic`, `issue-tracker`, `workspace-scaffold` — becomes available in every workspace via Claude Code's native agent picker.
+A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `plan-reviewer`, `code-reviewer`, `alignment-reviewer`, `generic`, `issue-tracker`, `workspace-scaffold` — becomes available in every workspace via Claude Code's native agent picker.
 
 ## Setup
 
@@ -8,10 +8,11 @@ A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run
 2. Open the clone in Claude Code.
 3. Run the slash command `/setup-agentic-scaffold`.
 
-The slash command runs `scripts/install.mjs`, which symlinks three things into `~/.claude/`:
+The slash command runs `scripts/install.mjs`, which symlinks four things into `~/.claude/`:
 
 - Each `.claude/agents/<name>.md` → `~/.claude/agents/<name>.md` (so the agent picker shows them in every workspace).
-- The repo's `scripts/` directory → `~/.claude/agentic-scaffold/` (so agents can call `scaffold.mjs` and `install.mjs` by an absolute, version-stable path).
+- The repo's `.claude/agents/skills/agentic-template/` → `~/.claude/agents/skills/agentic-template/` (so skill files for `code-reviewer` are available at runtime).
+- The repo's `scripts/` directory → `~/.claude/agentic-scaffold/` (so agents can call scaffold scripts by an absolute, version-stable path).
 - Each `.claude/commands/<name>.md` → `~/.claude/commands/<name>.md` (so the slash command itself is globally available after the first install).
 
 Re-run `/setup-agentic-scaffold` any time to refresh — the install is idempotent.
@@ -25,13 +26,15 @@ Open any workspace in Claude Code and pick an agent from the agent picker. Only 
 | `planner` | yes | Opus 4.7 | **Entry point for all feature/bug work.** Drafts the plan, spawns workers in sequence, integrates outcomes. |
 | `coder` | no (planner-spawned only) | Sonnet 4.6 | Implements code per the planner's coder slice. |
 | `qa` | no (planner-spawned only) | Sonnet 4.6 | Implements + runs tests; reports failures with a hypothesis. |
-| `docs` | no (planner-spawned only) | Sonnet 4.6 | Updates project documentation. Audit role flows through `reviewer` instead. |
-| `generic` | yes | Sonnet 4.6 | Ad-hoc / one-off tasks outside the feature pipeline. Can spawn `reviewer` on demand. |
-| `reviewer` | yes (rare) | Opus 4.7 | Adversarial reviewer. Usually invoked by another agent with a scope. |
+| `docs` | no (planner-spawned only) | Sonnet 4.6 | Updates project documentation. Audit role flows through reviewer tiers instead. |
+| `generic` | yes | Sonnet 4.6 | Ad-hoc / one-off tasks outside the feature pipeline. Can spawn reviewer agents on demand. |
+| `plan-reviewer` | no (agent-spawned) | inherit | Reviews implementation plans for feasibility, scope, execution-graph quality, and architectural alignment. |
+| `code-reviewer` | no (agent-spawned) | inherit | Skill-loaded code reviewer. Loads heuristic checklists per caller-supplied slug. Supports parallel invocation. |
+| `alignment-reviewer` | no (agent-spawned) | inherit | Reviews cross-artifact consistency (plan ↔ code ↔ tests ↔ docs). Final pipeline pass. |
 | `issue-tracker` | no (planner-spawned only) | Sonnet 4.6 | Frontmatter-Sync bridge to Azure DevOps / GitHub. |
 | `workspace-scaffold` | yes | Sonnet 4.6 | One-shot setup for a new workspace. Run once. |
 
-`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `reviewer`, `workspace-scaffold`) cover ad-hoc tasks, one-off reviews and scaffold setup respectively.
+`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `workspace-scaffold`) cover ad-hoc tasks and scaffold setup respectively. Reviewer agents (`plan-reviewer`, `code-reviewer`, `alignment-reviewer`) are spawned by other agents and not intended for direct user invocation.
 
 ## Per-workspace setup
 
@@ -77,7 +80,9 @@ agent-artifacts/
     qa/failure-report.md                        # written by qa when tests fail
     planner/questions.md
   reviews/
-    adversarial-review.md                       # written by reviewer, overwritten each run
+    plan-review.md                              # written by plan-reviewer, overwritten each run
+    code-review-{slug}.md                       # written by code-reviewer (one per skill slug)
+    alignment-review.md                         # written by alignment-reviewer, overwritten each run
 ```
 
 `planner` runs an **artifact-tree inventory** on every startup — surfaces what it finds to the user, asks whether to resume / start fresh / inspect, and wipes only with explicit confirmation. The tree is the state; the user is the source of truth.
@@ -89,13 +94,17 @@ CLAUDE.md                          # Stub orientation file for this meta-templat
 README.md                          # This file
 .claude/
   agents/                          # Agent definitions installed to ~/.claude/agents/
+    skills/
+      agentic-template/
+        code-reviewer/             # Skill files loaded by code-reviewer per slug
   commands/                        # Slash commands installed to ~/.claude/commands/
     setup-agentic-scaffold.md
   specific-agent-instructions/     # Empty stubs — committed, demonstrate override surface
   epics/                           # Empty (.gitkeep) — committed, demonstrates issue-tracker target
 scripts/
   scaffold.mjs                     # Deterministic part of workspace-scaffold (Node 18+, no deps)
-  install.mjs                      # Symlinks agents, scripts, and slash commands into ~/.claude/
+  install.mjs                      # Symlinks agents, skills, scripts, and slash commands into ~/.claude/
+  dispatch-manifest.mjs            # Scoped reviewer/skill manifest for consuming agents
 Workspace-Scaffold/                # Fixture mirroring what end-user workspaces get post-scaffold
 docs/
   plan.md                          # Merge plan (design history)
@@ -106,3 +115,4 @@ docs/
 - Windows: file symlinks need Developer Mode or admin to be created without prompting. `install.mjs` probes for symlink support and prints a clear error if it fails.
 - After `git pull` in this repo, re-run `/setup-agentic-scaffold` to pick up newly added agents.
 - There is no GitHub Copilot integration. The scaffold uses `CLAUDE.md` and Claude Code's native sub-agent conventions; agents communicate in plain conversation without special markers or custom tooling.
+- The install script automatically cleans up dangling agent symlinks on re-install. After upgrading from a version that had different agents (e.g., the single `reviewer` agent), re-running `/setup-agentic-scaffold` removes stale symlinks and creates the new ones in one step.
