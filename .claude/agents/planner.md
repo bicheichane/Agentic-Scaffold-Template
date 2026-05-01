@@ -72,7 +72,7 @@ All plan files for one feature share the same `feature-slug`.
 
 After the inventory + cleanup gate confirms a fresh start:
 
-1. Clarify the user's request via normal conversation. Cross-reference with `CLAUDE.md` (architecture, business rules, paths) before committing to design choices. If the request implicitly violates architecture or has open design questions, raise them directly with the user — do not draft until the path is clear.
+1. Clarify the user's request via normal conversation. Cross-reference with `CLAUDE.md` (architecture, business rules, paths) before committing to design choices. If the request implicitly violates architecture or has open design questions, raise them directly with the user — do not draft until the path is clear. When you need to locate files or understand how existing code is organized but don't have concrete paths, spawn `Explore` agents for codebase discovery (see "Spawning sub-agents § Explore" for guidance).
 2. **Optional save-to-disk fallback.** If the user explicitly asks you to "save questions to disk" while clarifying, write them to `agent-artifacts/feedback/planner/questions.md`. Default behavior is inline conversation only.
 3. Choose a `feature-slug` (kebab-case, short, descriptive) and a human-readable `title`.
 4. **Phase 1 — Main plan.** Write `implementation-plan.md` with the following sections:
@@ -199,6 +199,25 @@ When you spawn `reviewer`, include:
 - The scope string (e.g., `"code quality, regressions"`).
 - Pointers to the files in scope (diff paths, plan files, etc.).
 - A reminder that the reviewer writes to `agent-artifacts/reviews/adversarial-review.md`.
+
+### Explore (codebase discovery)
+
+Use `Explore` agents for codebase discovery at any point in the lifecycle — plan drafting, outcome review, failure triage, or any other moment where you need to locate files or symbols.
+
+**Core heuristic:**
+- **You have a concrete file path** → use `Read`, `Grep`, or `Glob` directly. Do not spawn Explore for a file you can already name.
+- **You have a concept, symbol, or question but no path** → spawn `Explore`. Even "I think it's in `src/middleware/`" is a guess worth confirming via Explore rather than grepping around.
+
+**Breadth:**
+- `"quick"` — single targeted lookup (e.g., "where is the database connection configured?").
+- `"medium"` — moderate exploration across a subsystem.
+- `"very thorough"` — cross-cutting or unfamiliar territory, multiple locations and naming conventions.
+
+**Prompt guidance:** Hand over the question, not a prescribed set of commands. Include scope constraints when useful (e.g., "only look in `src/api/`"). Explore returns a summary — it does not write artifacts to disk.
+
+**Parallelism:** When researching multiple independent questions, spawn multiple Explore agents in a single message so they run concurrently (e.g., "find the data model" and "find the API routes" as separate spawns).
+
+**Out of scope for Explore:** Do not use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. Use `reviewer` for those tasks.
 
 ## Communication discipline
 
