@@ -24,7 +24,7 @@ node "$HOME/.claude/agentic-scaffold/scaffold.mjs" init --workspace=<workspace-r
 
 This single command, idempotently and create-missing-only:
 
-- Creates `.claude/specific-agent-instructions/` with empty stubs for every agent in the merged roster (`generic.md`, `planner.md`, `coder.md`, `qa.md`, `docs.md`, `plan-reviewer.md`, `code-reviewer.md`, `alignment-reviewer.md`, `issue-tracker.md`).
+- Creates `.claude/specific-agent-instructions/` with empty stubs for every agent in the merged roster (run `scaffold.mjs manifest` for the current list).
 - Creates `.claude/specific-agent-instructions/README.md` (auto-generated index).
 - Creates `.claude/epics/.gitkeep`.
 - Appends `agent-artifacts/` to `.gitignore` per this contract:

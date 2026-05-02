@@ -21,7 +21,7 @@ The user engages the planner agent. The planner guides every transition with con
 The slash command runs `scripts/install.mjs`, which symlinks four things into `~/.claude/`:
 
 - Each `.claude/agents/<name>.md` → `~/.claude/agents/<name>.md` (so the agent picker shows them in every workspace).
-- The repo's `.claude/agents/skills/agentic-template/` → `~/.claude/agents/skills/agentic-template/` (so skill files for `code-reviewer` are available at runtime).
+- The repo's `.claude/agents/skills/agentic-template/` → `~/.claude/agents/skills/agentic-template/` (so skill files for `reviewer` are available at runtime).
 - The repo's `scripts/` directory → `~/.claude/agentic-scaffold/` (so agents can call scaffold scripts by an absolute, version-stable path).
 - Each `.claude/commands/<name>.md` → `~/.claude/commands/<name>.md` (so the slash command itself is globally available after the first install).
 
@@ -39,12 +39,13 @@ Open any workspace in Claude Code and pick an agent from the agent picker. Only 
 | `docs` | no (planner-spawned only) | Sonnet 4.6 | Updates project documentation. Audit role flows through reviewer tiers instead. |
 | `generic` | yes | Sonnet 4.6 | Ad-hoc / one-off tasks outside the feature pipeline. Can spawn reviewer agents on demand. |
 | `plan-reviewer` | no (agent-spawned) | inherit | Reviews implementation plans for feasibility, scope, execution-graph quality, and architectural alignment. |
-| `code-reviewer` | no (agent-spawned) | inherit | Skill-loaded code reviewer. Loads heuristic checklists per caller-supplied slug. Supports parallel invocation. |
+| `reviewer` | no (agent-spawned) | inherit | Skill-loaded reviewer. Loads heuristic checklists per caller-supplied slug. Supports parallel invocation. |
 | `alignment-reviewer` | no (agent-spawned) | inherit | Reviews cross-artifact consistency (plan ↔ code ↔ tests ↔ docs). Final pipeline pass. |
+| `review-liaison` | no (agent-spawned) | inherit | Reads review outputs, writes structured Finding N / A-B-C-D presentation. |
 | `issue-tracker` | no (planner-spawned only) | Sonnet 4.6 | Frontmatter-Sync bridge to Azure DevOps / GitHub. |
 | `workspace-scaffold` | yes | Sonnet 4.6 | One-shot setup for a new workspace. Run once. |
 
-`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `workspace-scaffold`) cover ad-hoc tasks and scaffold setup respectively. Reviewer agents (`plan-reviewer`, `code-reviewer`, `alignment-reviewer`) are spawned by other agents and not intended for direct user invocation.
+`planner` is the entry point for all feature/bug work — there is no escape hatch around it. The other user-invocable agents (`generic`, `workspace-scaffold`) cover ad-hoc tasks and scaffold setup respectively. Reviewer agents (`plan-reviewer`, `reviewer`, `alignment-reviewer`) and `review-liaison` are spawned by other agents and not intended for direct user invocation.
 
 ## Per-workspace setup
 
@@ -90,9 +91,11 @@ agent-artifacts/
     qa/failure-report.md                        # written by qa when tests fail
     planner/questions.md
   reviews/
-    plan-review.md                              # written by plan-reviewer, overwritten each run
-    code-review-{slug}.md                       # written by code-reviewer (one per skill slug)
-    alignment-review.md                         # written by alignment-reviewer, overwritten each run
+    review-plan.md                              # written by plan-reviewer, overwritten each run
+    review-{slug}.md                            # written by reviewer (one per skill slug)
+    review-alignment.md                         # written by alignment-reviewer, overwritten each run
+    review-liaison-findings.md                  # written by review-liaison; read by planner each gate
+  review-resolutions.md                         # user decisions on review findings; append-only per feature
 ```
 
 `planner` runs an **artifact-tree inventory** on every startup — surfaces what it finds to the user, asks whether to resume / start fresh / inspect, and wipes only with explicit confirmation. The tree is the state; the user is the source of truth.
@@ -106,7 +109,7 @@ README.md                          # This file
   agents/                          # Agent definitions installed to ~/.claude/agents/
     skills/
       agentic-template/
-        code-reviewer/             # Skill files loaded by code-reviewer per slug
+        reviewer/                  # Skill files loaded by reviewer per slug
   commands/                        # Slash commands installed to ~/.claude/commands/
     setup-agentic-scaffold.md
   specific-agent-instructions/     # Empty stubs — committed, demonstrate override surface
@@ -125,4 +128,4 @@ docs/
 - Windows: file symlinks need Developer Mode or admin to be created without prompting. `install.mjs` probes for symlink support and prints a clear error if it fails.
 - After `git pull` in this repo, re-run `/setup-agentic-scaffold` to pick up newly added agents.
 - There is no GitHub Copilot integration. The scaffold uses `CLAUDE.md` and Claude Code's native sub-agent conventions; agents communicate in plain conversation without special markers or custom tooling.
-- The install script automatically cleans up dangling agent symlinks on re-install. After upgrading from a version that had different agents (e.g., the single `reviewer` agent), re-running `/setup-agentic-scaffold` removes stale symlinks and creates the new ones in one step.
+- The install script automatically cleans up dangling agent symlinks on re-install. Re-running `/setup-agentic-scaffold` removes stale symlinks and creates new ones in one step.

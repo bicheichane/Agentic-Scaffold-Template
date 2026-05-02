@@ -49,9 +49,11 @@ All paths are under `agent-artifacts/`. Create the directory and any subdirector
 | `agent-artifacts/feedback/planner/questions.md` | you write on user request only |
 | `agent-artifacts/feedback/coder/implementation-divergences-{step}{node}.md` | `coder` writes (one per node) when divergences occur |
 | `agent-artifacts/feedback/qa/failure-report.md` | `qa` writes when tests fail |
-| `agent-artifacts/reviews/plan-review.md` | `plan-reviewer` writes; overwritten each invocation |
-| `agent-artifacts/reviews/code-review-{slug}.md` | `code-reviewer` writes (one per skill slug); `{slug}` from spawn prompt |
-| `agent-artifacts/reviews/alignment-review.md` | `alignment-reviewer` writes; overwritten each invocation |
+| `agent-artifacts/reviews/review-plan.md` | `plan-reviewer` writes; overwritten each invocation |
+| `agent-artifacts/reviews/review-{slug}.md` | `reviewer` writes (one per skill slug); `{slug}` from spawn prompt |
+| `agent-artifacts/reviews/review-alignment.md` | `alignment-reviewer` writes; overwritten each invocation |
+| `agent-artifacts/reviews/review-liaison-findings.md` | `review-liaison` writes; you read |
+| `agent-artifacts/review-resolutions.md` | you write (append) |
 | `.claude/epics/<feature-slug>/...` | committed; `issue-tracker` lifecycle target |
 
 **Note:** Worker agents (`coder`, `qa`, `docs`) own additional artifacts under `agent-artifacts/feedback/<agent>/` (questions, divergences, failure reports). You read these when consuming outcome files; see the worker agents' own definitions for full paths.
@@ -86,14 +88,14 @@ Review is listed first. Proceed is last. The user should never need to ask "can 
 |------|------------|----------------------|
 | **Gate 1 — Plan RC** | Main `implementation-plan.md` is drafted and presented to the user | `plan-reviewer` |
 | **Gate 2 — Sub-plans RC** | All sub-plan slices are written | `plan-reviewer` (on the slices) |
-| **Gate 3 — Step completion** | Each execution step finishes (coder, qa, or docs — any step composed of single or parallel agent executions) | `code-reviewer` swarm for coder steps; appropriate reviewer for qa/docs |
+| **Gate 3 — Step completion** | Each execution step finishes (coder, qa, or docs — any step composed of single or parallel agent executions) | `reviewer` swarm for coder steps; appropriate reviewer for qa/docs |
 | **Gate 4 — Pipeline complete** | All execution steps done, all outcomes collected | `alignment-reviewer` |
 
 #### Gate 2 fast-track option
 
 Gate 2 includes a fourth option beyond the standard three:
 
-4. **Execute all steps and review at the end** — all coder steps run through without individual Gate 3 pauses. The code-review swarm fires once after the final coder step completes (before qa begins). Gate 4 then runs a separate cross-artifact pass via the alignment-reviewer at pipeline end. Both passes are intentional: the code-review swarm checks coder output early, and the alignment-reviewer checks consistency across all artifacts at the end. This is the sensible mode for smaller features where step-by-step pausing is more disruptive than helpful.
+4. **Execute all steps and review at the end** — all coder steps run through without individual Gate 3 pauses. The reviewer swarm fires once after the final coder step completes (before qa begins). Gate 4 then runs a separate cross-artifact pass via the alignment-reviewer at pipeline end. Both passes are intentional: the reviewer swarm checks coder output early, and the alignment-reviewer checks consistency across all artifacts at the end. This is the sensible mode for smaller features where step-by-step pausing is more disruptive than helpful.
 
 When fast-track is active, Gate 3 is skipped for coder steps but still fires for qa and docs steps (different review concerns). Gate 4 fires as normal.
 
@@ -137,7 +139,7 @@ Rules for building the execution graph:
 - **Single-node steps are fine.** Not every step needs parallelism. A step with one node (e.g., `3a`) is just a serial step.
 - **The planner always decides.** There is no user-facing toggle. The planner uses coupling analysis: if changes span distinct subsystems with disjoint file sets and no shared new interfaces, they parallelize. If in doubt, don't split.
 
-5. Present `implementation-plan.md` to the user and run **Gate 1 — Plan RC**. Only after the user chooses "proceed" (with or without having done a review pass first) do you move to Phase 2.
+5. Present `implementation-plan.md` to the user and run **Gate 1 — Plan RC**. When the user chooses "trigger agent review" at this gate, spawn `plan-reviewer`, then follow the Review-liaison protocol below. Only after the user chooses "proceed" (with or without having done a review pass first) do you move to Phase 2.
 
 6. **Phase 2 — Sub-plans.** After the main plan is approved, write:
 
@@ -161,7 +163,7 @@ Each slice is self-contained: it duplicates any shared context (types, conventio
 2. **Documentation Changes** — updates to architecture / business-rules / agent files / etc.
 3. **Cross-References** — which main-plan sections to verify against.
 
-7. Present the sub-plans to the user and run **Gate 2 — Sub-plans RC**. If the user chooses the fast-track option, record this and skip Gate 3 for coder steps during execution.
+7. Present the sub-plans to the user and run **Gate 2 — Sub-plans RC**. When the user chooses "trigger agent review" at this gate, spawn `plan-reviewer` on the slices, then follow the Review-liaison protocol below. If the user chooses the fast-track option, record this and skip Gate 3 for coder steps during execution.
 
 ### 2. (Optional) Spawn `issue-tracker` to scaffold remote items
 
@@ -186,9 +188,9 @@ For each step in the execution graph, in order:
 5. Run **Gate 3 — Step completion**. If fast-track mode was chosen at Gate 2, skip this gate for coder steps and proceed directly to the next step. Gate 3 still fires for qa and docs steps regardless of fast-track.
 6. Proceed to the next step (after gate clears or was skipped).
 
-### 3.5. Spawn `code-reviewer` swarm
+### 3.5. Spawn `reviewer` swarm
 
-This is the mechanism behind Gate 3 (for coder steps). When the user chooses "trigger agent review" at a coder-step gate, or when fast-track mode reaches the end of the final coder step (before qa begins), spawn a parallel swarm of `code-reviewer` instances. Each instance loads a different skill and writes to its own output file. In fast-track mode, the swarm fires after the final coder step completes — not at Gate 4. Gate 4 uses the alignment-reviewer instead for a separate cross-artifact consistency pass.
+This is the mechanism behind Gate 3 (for coder steps). When the user chooses "trigger agent review" at a coder-step gate, or when fast-track mode reaches the end of the final coder step (before qa begins), spawn a parallel swarm of `reviewer` instances. Each instance loads a different skill and writes to its own output file. In fast-track mode, the swarm fires after the final coder step completes — not at Gate 4. Gate 4 uses the alignment-reviewer instead for a separate cross-artifact consistency pass.
 
 To discover available skills, run:
 
@@ -202,16 +204,24 @@ Choose which skills to include based on the feature's nature:
 - **Security-sensitive:** `spec` + `patterns` + `security`
 - **Critical/large feature:** all available skills
 
-For each chosen skill, spawn one `code-reviewer` via Task with:
+For each chosen skill, spawn one `reviewer` via Task with:
 
 ```
 Scope slug: {slug}
-Output path: agent-artifacts/reviews/code-review-{slug}.md
+Output path: agent-artifacts/reviews/review-{slug}.md
 ```
 
 Plus pointers to the changed files (from coder-outcome files-touched lists) and any relevant plan context.
 
-All instances in the swarm can be spawned as parallel Task calls. After all return, read each `code-review-{slug}.md` file and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback"). The user decides which findings to act on.
+All instances in the swarm can be spawned as parallel Task calls. After all return, spawn `review-liaison` via Task with:
+
+```
+Review files: agent-artifacts/reviews/review-{slug1}.md, agent-artifacts/reviews/review-{slug2}.md, ...
+```
+
+(List the actual review file paths from the skills you spawned.)
+
+The liaison reads the review files and writes a structured Finding N / A-B-C-D presentation to `agent-artifacts/reviews/review-liaison-findings.md`. Read the file and present the liaison's findings to the user. Collect the user's decisions (e.g., "1-A, 2-D, 3-B") and append them to `agent-artifacts/review-resolutions.md` following the format in the Review-liaison protocol section. The user decides which findings to act on.
 
 ### 4. Spawn `qa`
 
@@ -221,7 +231,7 @@ After reading outcomes, run **Gate 3 — Step completion**.
 
 ### 5. Spawn `docs`
 
-Spawn `docs` via `Task`. It reads `implementation-plan-docs.md`, writes `docs-outcome.md`, and may invoke `code-reviewer` with `Scope slug: docs-accuracy` for self-review. When it returns, read `docs-outcome.md`.
+Spawn `docs` via `Task`. It reads `implementation-plan-docs.md`, writes `docs-outcome.md`, and may invoke `reviewer` with `Scope slug: docs-accuracy` for self-review. When it returns, read `docs-outcome.md`.
 
 After reading outcomes, run **Gate 3 — Step completion**.
 
@@ -233,7 +243,13 @@ After all execution steps are done, run **Gate 4 — Pipeline complete**. If the
 - `agent-artifacts/feedback/coder/implementation-divergences-*.md` (if any)
 - The actual source/test/doc files referenced by the outcomes
 
-After it returns, read `agent-artifacts/reviews/alignment-review.md` and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback").
+After it returns, spawn `review-liaison` via Task with:
+
+```
+Review files: agent-artifacts/reviews/review-alignment.md
+```
+
+The liaison reads the review file and writes a structured Finding N / A-B-C-D presentation to `agent-artifacts/reviews/review-liaison-findings.md`. Read the file and present the liaison's findings to the user. Collect the user's decisions and append them to `agent-artifacts/review-resolutions.md`. The user decides which findings to act on.
 
 ### 7. Report completion
 
@@ -261,7 +277,7 @@ Use the `Task` tool. Sub-agents run autonomously and cannot ask the user mid-exe
 
 ### Reviewers
 
-Three reviewer tiers are available, each mapped to specific gates in the workflow. Each has its own output path. To discover available skills and output paths, run:
+Three reviewer tiers are available, plus a `review-liaison` that handles finding presentation. Each reviewer has its own output path. To discover available skills and output paths, run:
 
 ```
 node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=planner
@@ -270,17 +286,24 @@ node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=planner
 When you spawn `plan-reviewer`:
 - Pass the path to the plan being reviewed (`agent-artifacts/implementation-plan.md`)
 - Pass any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc)
-- It writes to `agent-artifacts/reviews/plan-review.md`
+- It writes to `agent-artifacts/reviews/review-plan.md`
 
-When you spawn `code-reviewer` (one or more parallel instances):
+When you spawn `reviewer` (one or more parallel instances):
 - Each spawn prompt must include `Scope slug:` and `Output path:` lines
 - Pass pointers to the files to review (changed files from coder-outcome files-touched)
 - Pass any relevant plan context
-- Each instance writes to its own `agent-artifacts/reviews/code-review-{slug}.md`
+- Each instance writes to its own `agent-artifacts/reviews/review-{slug}.md`
 
 When you spawn `alignment-reviewer`:
 - Pass pointers to all pipeline artifacts (plan files, outcome files, divergence files, source/test/doc files)
-- It writes to `agent-artifacts/reviews/alignment-review.md`
+- It writes to `agent-artifacts/reviews/review-alignment.md`
+
+When you spawn `review-liaison`:
+- Include `Review files:` with the comma-separated list of review file paths
+- Include the gate context
+- It writes structured findings to `agent-artifacts/reviews/review-liaison-findings.md`
+- Read the file after the liaison returns, then present findings to the user
+- After collecting user decisions, you (the planner) append to `agent-artifacts/review-resolutions.md`
 
 ### Explore (codebase discovery)
 
@@ -299,22 +322,43 @@ Use `Explore` agents for codebase discovery at any point in the lifecycle — pl
 
 **Parallelism:** When researching multiple independent questions, spawn multiple Explore agents in a single message so they run concurrently (e.g., "find the data model" and "find the API routes" as separate spawns).
 
-**Out of scope for Explore:** Do not use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. Use the appropriate reviewer tier for those tasks — `plan-reviewer` for plan auditing, `code-reviewer` for code review, `alignment-reviewer` for cross-artifact consistency.
+**Out of scope for Explore:** Do not use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. Use the appropriate reviewer tier for those tasks — `plan-reviewer` for plan auditing, `reviewer` for code review, `alignment-reviewer` for cross-artifact consistency.
 
 ## Communication discipline
 
-- Talk to the user in normal conversation. There is no separate "ask user" tool; you are already in the conversation when invoked.
 - Sub-agents you spawn cannot ask the user mid-execution. If a worker needs clarification it sets `needs-clarification: true` in its outcome header and lists the questions; you surface them.
 - Inter-agent messages are summary-only — full context lives on disk.
 
-### Surfacing reviewer feedback
+### Review-liaison protocol
 
-When presenting findings from any reviewer agent (`plan-reviewer`, `code-reviewer`, `alignment-reviewer`) to the user, follow this protocol for **every** finding:
+After any reviewer agent returns, spawn `review-liaison` via Task. The planner never reads review file content or presents findings itself — the liaison handles all finding interpretation and structured presentation.
 
-1. **Full context.** Do not relay findings as bare titles or one-liners. For each issue, explain *what* the reviewer flagged, *where* in the codebase or plan it applies (file paths, line ranges, plan sections), and *why* it matters — enough that the user can fully understand the problem without needing to read the raw review file themselves.
-2. **Resolution avenues.** For every finding, present one or more concrete resolution paths. Pull from the reviewer's own suggestions first, then supplement with your own ideas when the reviewer's suggestions are absent, incomplete, or when you see alternatives the reviewer did not consider. Label the source clearly ("the reviewer suggests…" vs. "alternatively, we could…") so the user can weigh each option on its merits.
+**Spawning the liaison:**
 
-The user decides which findings to act on and which resolution to pursue. Never silently skip, collapse, or downplay a finding — if a reviewer raised it, the user sees it in full.
+Include in the spawn prompt:
+- `Review files:` — comma-separated list of the review output file paths (the same paths you specified when spawning the reviewer(s)).
+- The gate context (e.g., "Gate 1 — Plan RC", "Gate 3 — Step 2 completion").
+
+**After the liaison returns:**
+
+The liaison writes a structured Finding N / A-B-C-D presentation to `agent-artifacts/reviews/review-liaison-findings.md`. Read the file and present the findings to the user. The user responds with their decisions (e.g., "1-A, 2-D, 3-B").
+
+**Recording resolutions:**
+
+After collecting user decisions, append them to `agent-artifacts/review-resolutions.md`. Use `mkdir -p agent-artifacts` before writing. Format:
+
+```markdown
+## [ISO-8601 date] -- [gate label]
+
+| Finding | Source | Severity | Decision | Rationale |
+|---------|--------|----------|----------|-----------|
+| G1 | review-spec.md | Medium | A -- [option label] | [user rationale if provided] |
+| G2 | review-patterns.md | Low | D -- Defer | -- |
+```
+
+Append-only. Multiple review gates within a feature lifecycle accumulate entries. Never overwrite.
+
+**The planner never reads raw review file content directly** (the `review-{slug}.md`, `review-plan.md`, `review-alignment.md` files). Instead, read the liaison's structured presentation from `agent-artifacts/reviews/review-liaison-findings.md`.
 
 ## Boundaries
 

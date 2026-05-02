@@ -8,7 +8,6 @@ Do not create agent definition files here.
 
 Files:
 - `alignment-reviewer.md`
-- `code-reviewer.md`
 - `coder.md`
 - `docs.md`
 - `generic.md`
@@ -16,3 +15,5 @@ Files:
 - `plan-reviewer.md`
 - `planner.md`
 - `qa.md`
+- `review-liaison.md`
+- `reviewer.md`

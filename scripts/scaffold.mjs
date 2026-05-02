@@ -30,8 +30,9 @@ const STUBS = [
   { name: 'qa.md', purpose: '' },
   { name: 'docs.md', purpose: '' },
   { name: 'plan-reviewer.md', purpose: '' },
-  { name: 'code-reviewer.md', purpose: '' },
+  { name: 'reviewer.md', purpose: '' },
   { name: 'alignment-reviewer.md', purpose: '' },
+  { name: 'review-liaison.md', purpose: '' },
   { name: 'issue-tracker.md', purpose: 'platform config (azure-devops, github, etc.)' },
 ];
 

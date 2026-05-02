@@ -7,7 +7,7 @@
 // Usage: node dispatch-manifest.mjs --scope=<planner|coder|qa|docs|generic>
 //
 // The script reads skill files from:
-//   ~/.claude/agents/skills/agentic-template/code-reviewer/
+//   ~/.claude/agents/skills/agentic-template/reviewer/
 //
 // Flags:
 //   --scope=<value>  Required. One of: planner, coder, qa, docs, generic.
@@ -25,7 +25,7 @@ import process from 'node:process';
 // Scopes that output all three reviewer sections (plan, code, alignment).
 const FULL_SCOPES = new Set(['planner', 'generic']);
 
-// Scopes that output only the code-reviewer section (self-review only).
+// Scopes that output only the reviewer section (self-review only).
 const CODE_ONLY_SCOPES = new Set(['coder', 'qa', 'docs']);
 
 const VALID_SCOPES = [...FULL_SCOPES, ...CODE_ONLY_SCOPES];
@@ -36,8 +36,8 @@ const VALID_SCOPES = [...FULL_SCOPES, ...CODE_ONLY_SCOPES];
 const SCOPE_SKILLS = {
   planner: null,
   coder:   ['security', 'patterns', 'perf', 'error-handling', 'spec'],
-  qa:      ['test-quality'],
-  docs:    ['docs-accuracy'],
+  qa:      ['test-quality', 'test-coverage-map'],
+  docs:    ['docs-accuracy', 'docs-completeness'],
   generic: null,
 };
 
@@ -47,7 +47,7 @@ const SKILLS_DIR = path.join(
   'agents',
   'skills',
   'agentic-template',
-  'code-reviewer'
+  'reviewer'
 );
 
 function parseArgs(argv) {
@@ -111,11 +111,11 @@ async function discoverSkills(scope) {
   return { slugs, warning: null };
 }
 
-function renderCodeReviewerSection(slugs) {
+function renderReviewerSection(slugs) {
   const lines = [];
-  lines.push('## code-reviewer');
+  lines.push('## reviewer');
   lines.push('Type: parallel-swarm');
-  lines.push('Output path pattern: agent-artifacts/reviews/code-review-{slug}.md');
+  lines.push('Output path pattern: agent-artifacts/reviews/review-{slug}.md');
   if (slugs.length === 0) {
     lines.push('Available skills: none');
   } else {
@@ -127,7 +127,7 @@ function renderCodeReviewerSection(slugs) {
   lines.push('');
   lines.push('Spawn template (per skill):');
   lines.push('  Scope slug: {slug}');
-  lines.push('  Output path: agent-artifacts/reviews/code-review-{slug}.md');
+  lines.push('  Output path: agent-artifacts/reviews/review-{slug}.md');
   return lines.join('\n');
 }
 
@@ -137,14 +137,14 @@ function renderFullManifest(scope, slugs) {
   lines.push('');
   lines.push('## plan-reviewer');
   lines.push('Type: single-invocation');
-  lines.push('Output path: agent-artifacts/reviews/plan-review.md');
+  lines.push('Output path: agent-artifacts/reviews/review-plan.md');
   lines.push('Skills: none (heuristics inline)');
   lines.push('');
-  lines.push(renderCodeReviewerSection(slugs));
+  lines.push(renderReviewerSection(slugs));
   lines.push('');
   lines.push('## alignment-reviewer');
   lines.push('Type: single-invocation');
-  lines.push('Output path: agent-artifacts/reviews/alignment-review.md');
+  lines.push('Output path: agent-artifacts/reviews/review-alignment.md');
   lines.push('Skills: none (heuristics inline)');
   return lines.join('\n');
 }
@@ -153,7 +153,7 @@ function renderCodeOnlyManifest(scope, slugs) {
   const lines = [];
   lines.push(`# Reviewer Dispatch Manifest (scope: ${scope})`);
   lines.push('');
-  lines.push(renderCodeReviewerSection(slugs));
+  lines.push(renderReviewerSection(slugs));
   return lines.join('\n');
 }
 

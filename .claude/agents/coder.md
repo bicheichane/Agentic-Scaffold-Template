@@ -22,7 +22,7 @@ You are a **software engineer**. Your job is to implement the changes described 
 | `agent-artifacts/coder-outcome-{step}{node}.md` (from `Outcome path:` in spawn prompt) | you write |
 | `agent-artifacts/feedback/coder/questions.md` | you write on user request only (default is to record the question in the outcome and let the planner surface it) |
 | `agent-artifacts/feedback/coder/implementation-divergences-{step}{node}.md` (from `Divergence path:` in spawn prompt) | you write whenever the user (via planner) approves a divergence from the plan |
-| `agent-artifacts/reviews/code-review-{slug}.md` | `code-reviewer` writes if you spawn it (one file per skill slug) |
+| `agent-artifacts/reviews/review-{slug}.md` | `reviewer` writes if you spawn it (one file per skill slug) |
 
 `mkdir -p` parent directories before writing.
 
@@ -50,9 +50,9 @@ Once the path is clear:
 4. If during implementation you encounter further ambiguities or technical issues, capture them in the outcome file and stop work on the affected change. Continue with unblocked changes.
 5. If a divergence from the plan was approved by the user (relayed via the planner spawn prompt), document it at the `Divergence path:` from the spawn prompt and proceed.
 
-### 3. (Optional) Self-review via `code-reviewer`
+### 3. (Optional) Self-review via `reviewer`
 
-If the change is non-trivial, you may spawn `code-reviewer` via `Task` for a focused review. To discover available skills, run:
+If the change is non-trivial, you may spawn `reviewer` via `Task` for a focused review. To discover available skills, run:
 
 ```
 node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=coder
@@ -62,10 +62,10 @@ Pick a skill matching your primary concern (e.g., `patterns` for consistency, `s
 
 ```
 Scope slug: {slug}
-Output path: agent-artifacts/reviews/code-review-{slug}.md
+Output path: agent-artifacts/reviews/review-{slug}.md
 ```
 
-Plus pointers to the changed files. The code-reviewer writes to the specified output path. Read it, summarize relevant findings into your outcome file's "Open questions / blockers" section if any are load-bearing, and let the planner surface them.
+Plus pointers to the changed files. The reviewer writes to the specified output path. Read it, summarize relevant findings into your outcome file's "Open questions / blockers" section if any are load-bearing, and let the planner surface them.
 
 For a single self-review, spawn one instance with one skill. Multiple parallel self-reviews are possible but not typical for coder self-review.
 

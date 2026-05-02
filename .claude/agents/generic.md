@@ -40,21 +40,21 @@ node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=generic
 | When the user asks to review... | Spawn | Why |
 |--------------------------------|-------|-----|
 | An implementation plan | `plan-reviewer` | Checks feasibility, scope, execution-graph quality, architectural alignment |
-| Source code (quality, security, patterns) | `code-reviewer` with a skill slug | Skill-loaded; pick the relevant focus area |
-| Tests (coverage, quality) | `code-reviewer` with `Scope slug: test-quality` | Test-specific heuristics |
-| Documentation (accuracy vs code) | `code-reviewer` with `Scope slug: docs-accuracy` | Docs-specific heuristics |
+| Source code (quality, security, patterns) | `reviewer` with a skill slug | Skill-loaded; pick the relevant focus area |
+| Tests (coverage, quality) | `reviewer` with `Scope slug: test-quality` | Test-specific heuristics |
+| Documentation (accuracy vs code) | `reviewer` with `Scope slug: docs-accuracy` | Docs-specific heuristics |
 | Cross-artifact consistency (code matches plan, tests cover code, docs describe code) | `alignment-reviewer` | Full artifact-set cross-reference |
 | General "review this" (unclear scope) | Ask the user to clarify | Don't guess the tier — the heuristics are different |
 
 **Spawning `plan-reviewer`:**
-Spawn via `Task` with the path to the plan file. It writes to `agent-artifacts/reviews/plan-review.md`. No skill loading — heuristics are inline.
+Spawn via `Task` with the path to the plan file. It writes to `agent-artifacts/reviews/review-plan.md`. No skill loading — heuristics are inline.
 
-**Spawning `code-reviewer`:**
+**Spawning `reviewer`:**
 Spawn via `Task`. Each spawn prompt must include:
 
 ```
 Scope slug: {slug}
-Output path: agent-artifacts/reviews/code-review-{slug}.md
+Output path: agent-artifacts/reviews/review-{slug}.md
 ```
 
 Plus pointers to the files to review. Multiple instances with different slugs can run in parallel.
@@ -66,13 +66,25 @@ Available skill slugs (run the dispatch script above for the current list):
 - `error-handling` — swallowed errors, boundary gaps, partial failure
 - `spec` — plan↔code fidelity, baked-in assumptions
 - `test-quality` — coverage, assertion quality, isolation, flakiness
+- `test-coverage-map` — what's tested vs. what exists; coverage gaps at the structural level
 - `docs-accuracy` — accuracy vs code, examples, completeness
+- `docs-completeness` — what's documented vs. what should be; stale references, missing entries
 
 **Spawning `alignment-reviewer`:**
-Spawn via `Task` with pointers to the full artifact set (plan files, outcome files, divergence files, source/test/doc files). It writes to `agent-artifacts/reviews/alignment-review.md`. No skill loading — heuristics are inline.
+Spawn via `Task` with pointers to the full artifact set (plan files, outcome files, divergence files, source/test/doc files). It writes to `agent-artifacts/reviews/review-alignment.md`. No skill loading — heuristics are inline.
 
 **After any reviewer returns:**
-Read the output file, evaluate findings critically (do not treat them as binding), and walk the user through them with your own recommendation per finding. Wait for the user's approval before implementing any review-driven change.
+Spawn `review-liaison` via Task with:
+
+```
+Review files: agent-artifacts/reviews/review-{slug}.md
+```
+
+(List the actual review file paths from the reviewer(s) you spawned.)
+
+The liaison writes structured findings to `agent-artifacts/reviews/review-liaison-findings.md`. Read the file and walk the user through the findings with your own recommendation per finding. Wait for the user's approval before implementing any review-driven change.
+
+Note: Unlike `planner`, `generic` does not maintain `agent-artifacts/review-resolutions.md` because ad-hoc reviews do not participate in the feature lifecycle or resolution tracking.
 
 ## Project knowledge
 

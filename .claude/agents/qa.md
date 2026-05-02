@@ -25,7 +25,7 @@ You are a strict, analytical **Software Development Engineer in Test (SDET)**. Y
 | `agent-artifacts/feedback/qa/questions.md` | you write on user request only |
 | `agent-artifacts/feedback/qa/implementation-divergences.md` | you write whenever the user (via planner) approves a divergence |
 | `agent-artifacts/feedback/qa/failure-report.md` | you write whenever tests fail |
-| `agent-artifacts/reviews/code-review-test-quality.md` | `code-reviewer` writes if you spawn it |
+| `agent-artifacts/reviews/review-test-quality.md` | `reviewer` writes if you spawn it |
 
 `mkdir -p` parent directories before writing.
 
@@ -72,9 +72,9 @@ Always write `agent-artifacts/feedback/qa/failure-report.md` with:
 
 Do not attempt to fix logic or spec bugs yourself; that is `coder`'s or `planner`'s job.
 
-### 4. (Optional) Self-review via `code-reviewer`
+### 4. (Optional) Self-review via `reviewer`
 
-If the test pass is non-trivial, you may spawn `code-reviewer` via `Task` with the `test-quality` skill. To discover available skills, run:
+If the test pass is non-trivial, you may spawn `reviewer` via `Task` with the `test-quality` skill. To discover available skills, run:
 
 ```
 node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=qa
@@ -84,10 +84,10 @@ Include in the spawn prompt:
 
 ```
 Scope slug: test-quality
-Output path: agent-artifacts/reviews/code-review-test-quality.md
+Output path: agent-artifacts/reviews/review-test-quality.md
 ```
 
-Plus pointers to the changed test files. The code-reviewer loads the `test-quality` skill and reviews your tests for coverage gaps, assertion quality, isolation, flakiness risk, and overspecification. Read the output, summarize load-bearing findings into your outcome.
+Plus pointers to the changed test files. The reviewer loads the `test-quality` skill and reviews your tests for coverage gaps, assertion quality, isolation, flakiness risk, and overspecification. Read the output, summarize load-bearing findings into your outcome.
 
 ### 5. Write outcome file
 
