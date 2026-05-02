@@ -70,6 +70,33 @@ All plan files for one feature share the same `feature-slug`.
 
 ## Workflow
 
+### Review gates
+
+Every pipeline transition includes a mandatory gate. When a stage completes, present the user with these options in this exact order:
+
+1. **Trigger an agent review** — spawn the appropriate reviewer agent for the current stage (see gate table below).
+2. **Provide feedback from a manual review** — the user reads the outputs themselves and gives direct feedback. Iterate on their feedback before re-presenting the gate.
+3. **Proceed to the next stage.**
+
+Review is listed first. Proceed is last. The user should never need to ask "can I review this?" — the options are always in front of them.
+
+#### Gate table
+
+| Gate | Fires after | Agent review mechanism |
+|------|------------|----------------------|
+| **Gate 1 — Plan RC** | Main `implementation-plan.md` is drafted and presented to the user | `plan-reviewer` |
+| **Gate 2 — Sub-plans RC** | All sub-plan slices are written | `plan-reviewer` (on the slices) |
+| **Gate 3 — Step completion** | Each execution step finishes (coder, qa, or docs — any step composed of single or parallel agent executions) | `code-reviewer` swarm for coder steps; appropriate reviewer for qa/docs |
+| **Gate 4 — Pipeline complete** | All execution steps done, all outcomes collected | `alignment-reviewer` |
+
+#### Gate 2 fast-track option
+
+Gate 2 includes a fourth option beyond the standard three:
+
+4. **Execute all steps and review at the end** — all coder steps run through without individual Gate 3 pauses. The code-review swarm fires once after the final coder step completes (before qa begins). Gate 4 then runs a separate cross-artifact pass via the alignment-reviewer at pipeline end. Both passes are intentional: the code-review swarm checks coder output early, and the alignment-reviewer checks consistency across all artifacts at the end. This is the sensible mode for smaller features where step-by-step pausing is more disruptive than helpful.
+
+When fast-track is active, Gate 3 is skipped for coder steps but still fires for qa and docs steps (different review concerns). Gate 4 fires as normal.
+
 ### 1. Drafting the plan
 
 After the inventory + cleanup gate confirms a fresh start:
@@ -110,7 +137,7 @@ Rules for building the execution graph:
 - **Single-node steps are fine.** Not every step needs parallelism. A step with one node (e.g., `3a`) is just a serial step.
 - **The planner always decides.** There is no user-facing toggle. The planner uses coupling analysis: if changes span distinct subsystems with disjoint file sets and no shared new interfaces, they parallelize. If in doubt, don't split.
 
-5. Present `implementation-plan.md` to the user for review. Iterate until the user is satisfied. Only after approval do you proceed to Phase 2.
+5. Present `implementation-plan.md` to the user and run **Gate 1 — Plan RC**. Only after the user chooses "proceed" (with or without having done a review pass first) do you move to Phase 2.
 
 6. **Phase 2 — Sub-plans.** After the main plan is approved, write:
 
@@ -134,15 +161,13 @@ Each slice is self-contained: it duplicates any shared context (types, conventio
 2. **Documentation Changes** — updates to architecture / business-rules / agent files / etc.
 3. **Cross-References** — which main-plan sections to verify against.
 
+7. Present the sub-plans to the user and run **Gate 2 — Sub-plans RC**. If the user chooses the fast-track option, record this and skip Gate 3 for coder steps during execution.
+
 ### 2. (Optional) Spawn `issue-tracker` to scaffold remote items
 
 If the user wants the feature tracked on the configured issue tracker, spawn `issue-tracker` (via the `Task` tool) with a clear instruction set: scaffold the remote items for this feature, inject the resulting remote IDs into the local frontmatter under `.claude/epics/<feature-slug>/`. The `issue-tracker` agent owns its own platform config and lifecycle — you supply only the scope.
 
-### 3. (Optional) Spawn `plan-reviewer` for plan-completeness audit
-
-If you want an adversarial pass on the plan before code is written, spawn `plan-reviewer` (via `Task`) with the path `agent-artifacts/implementation-plan.md` and any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc). After it returns, read `agent-artifacts/reviews/plan-review.md` and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback"). Update the plan if approved.
-
-### 4. Spawn `coder` — multi-step dispatch
+### 3. Spawn `coder` — multi-step dispatch
 
 For each step in the execution graph, in order:
 
@@ -158,11 +183,12 @@ For each step in the execution graph, in order:
 4. If any node has `needs-clarification: true` or reports a failure → stop.
    Surface the issue to the user. User decides whether to re-spawn, amend, or abort.
    Other completed nodes in the same step are kept (their outcomes persist on disk).
-5. Proceed to the next step.
+5. Run **Gate 3 — Step completion**. If fast-track mode was chosen at Gate 2, skip this gate for coder steps and proceed directly to the next step. Gate 3 still fires for qa and docs steps regardless of fast-track.
+6. Proceed to the next step (after gate clears or was skipped).
 
-### 4.5. (Optional) Spawn `code-reviewer` swarm
+### 3.5. Spawn `code-reviewer` swarm
 
-After all coder steps complete, you may spawn a parallel swarm of `code-reviewer` instances to review the implementation. Each instance loads a different skill and writes to its own output file.
+This is the mechanism behind Gate 3 (for coder steps). When the user chooses "trigger agent review" at a coder-step gate, or when fast-track mode reaches the end of the final coder step (before qa begins), spawn a parallel swarm of `code-reviewer` instances. Each instance loads a different skill and writes to its own output file. In fast-track mode, the swarm fires after the final coder step completes — not at Gate 4. Gate 4 uses the alignment-reviewer instead for a separate cross-artifact consistency pass.
 
 To discover available skills, run:
 
@@ -187,17 +213,21 @@ Plus pointers to the changed files (from coder-outcome files-touched lists) and 
 
 All instances in the swarm can be spawned as parallel Task calls. After all return, read each `code-review-{slug}.md` file and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback"). The user decides which findings to act on.
 
-### 5. Spawn `qa`
+### 4. Spawn `qa`
 
 Spawn `qa` via `Task`. It reads `implementation-plan-tests.md`, writes `qa-outcome.md`, and (if tests fail) `feedback/qa/failure-report.md`. When it returns, read both files. Apply the failure-routing rules below if tests failed.
 
-### 6. Spawn `docs`
+After reading outcomes, run **Gate 3 — Step completion**.
+
+### 5. Spawn `docs`
 
 Spawn `docs` via `Task`. It reads `implementation-plan-docs.md`, writes `docs-outcome.md`, and may invoke `code-reviewer` with `Scope slug: docs-accuracy` for self-review. When it returns, read `docs-outcome.md`.
 
-### 7. (Optional) Spawn `alignment-reviewer` for final pass
+After reading outcomes, run **Gate 3 — Step completion**.
 
-If a comprehensive cross-artifact consistency check is wanted, spawn `alignment-reviewer` (via `Task`) with pointers to all pipeline artifacts:
+### 6. Gate 4 — Pipeline complete
+
+After all execution steps are done, run **Gate 4 — Pipeline complete**. If the user chooses "trigger agent review", spawn `alignment-reviewer` (via `Task`) with pointers to all pipeline artifacts:
 - `agent-artifacts/implementation-plan.md` and all coder/test/docs slices
 - `agent-artifacts/coder-outcome-*.md` files
 - `agent-artifacts/feedback/coder/implementation-divergences-*.md` (if any)
@@ -205,7 +235,7 @@ If a comprehensive cross-artifact consistency check is wanted, spawn `alignment-
 
 After it returns, read `agent-artifacts/reviews/alignment-review.md` and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback").
 
-### 8. Report completion
+### 7. Report completion
 
 Summarize what was done across all phases. Ask the user whether to:
 - Materialize epics (spawn `issue-tracker` for materialization).
@@ -225,13 +255,13 @@ If any worker reports an unresolvable blocker (`needs-clarification: true` in it
 
 Use the `Task` tool. Sub-agents run autonomously and cannot ask the user mid-execution. When you spawn a worker, the prompt should include:
 
-- The path to the relevant plan slice (for coders: the `Plan slice:`, `Outcome path:`, and `Divergence path:` lines per §4; for qa/docs: `implementation-plan-tests.md` / `implementation-plan-docs.md`).
+- The path to the relevant plan slice (for coders: the `Plan slice:`, `Outcome path:`, and `Divergence path:` lines per §3; for qa/docs: `implementation-plan-tests.md` / `implementation-plan-docs.md`).
 - Any scope or constraint the user added during the conversation.
 - A reminder that the worker writes its outcome file and returns a one-paragraph summary plus the outcome path.
 
 ### Reviewers
 
-Three reviewer tiers are available, each with its own output path. To discover available skills and output paths, run:
+Three reviewer tiers are available, each mapped to specific gates in the workflow. Each has its own output path. To discover available skills and output paths, run:
 
 ```
 node "$HOME/.claude/agentic-scaffold/dispatch-manifest.mjs" --scope=planner

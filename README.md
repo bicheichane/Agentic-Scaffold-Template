@@ -1,6 +1,16 @@
 # Agentic Scaffold Template
 
-A globally-installed sub-agent scaffold for **Claude Code**. Clone the repo, run a slash command, and a curated roster of agents — `planner`, `coder`, `qa`, `docs`, `plan-reviewer`, `code-reviewer`, `alignment-reviewer`, `generic`, `issue-tracker`, `workspace-scaffold` — becomes available in every workspace via Claude Code's native agent picker.
+A structured sub-agent pipeline for **Claude Code** that keeps context windows small, routes work to focused workers, and puts a human decision point at every stage.
+
+## Why this exists
+
+Long-running agent sessions get worse as the context grows. The model is working harder to track state that could have lived on disk. Token costs go up while output quality goes down. Stuffing more into one conversation window doesn't solve either problem.
+
+This scaffold breaks work into single-purpose agents, each of which receives only the slice it needs. A planner holds the plan and orchestrates; workers (coder, qa, docs) get a focused plan slice and the relevant files. State lives on disk in artifact files under `agent-artifacts/`, not in conversation memory. Parallelism within a step follows from this design as a side-effect.
+
+Every pipeline stage ends with an explicit checkpoint: trigger an agent review, do a manual review yourself, or proceed. Review agents are adversarial by design. Findings come back with full context. The user decides what to act on. This is not a tool that runs to completion and hopes for the best.
+
+The user engages the planner agent. The planner guides every transition with concrete options. There are no special commands to memorize and no README to keep referring back to during actual work.
 
 ## Setup
 
@@ -23,7 +33,7 @@ Open any workspace in Claude Code and pick an agent from the agent picker. Only 
 
 | Agent | User-invocable | Model | Role |
 |---|---|---|---|
-| `planner` | yes | Opus 4.7 | **Entry point for all feature/bug work.** Drafts the plan, spawns workers in sequence, integrates outcomes. |
+| `planner` | yes | Inherit | **Entry point for all feature/bug work.** Drafts the plan, spawns workers in sequence, integrates outcomes. |
 | `coder` | no (planner-spawned only) | Sonnet 4.6 | Implements code per the planner's coder slice. |
 | `qa` | no (planner-spawned only) | Sonnet 4.6 | Implements + runs tests; reports failures with a hypothesis. |
 | `docs` | no (planner-spawned only) | Sonnet 4.6 | Updates project documentation. Audit role flows through reviewer tiers instead. |
