@@ -140,7 +140,7 @@ If the user wants the feature tracked on the configured issue tracker, spawn `is
 
 ### 3. (Optional) Spawn `plan-reviewer` for plan-completeness audit
 
-If you want an adversarial pass on the plan before code is written, spawn `plan-reviewer` (via `Task`) with the path `agent-artifacts/implementation-plan.md` and any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc). After it returns, read `agent-artifacts/reviews/plan-review.md` and surface findings to the user. Update the plan if approved.
+If you want an adversarial pass on the plan before code is written, spawn `plan-reviewer` (via `Task`) with the path `agent-artifacts/implementation-plan.md` and any `CLAUDE.md`-referenced spec paths (architecture doc, business-rules doc). After it returns, read `agent-artifacts/reviews/plan-review.md` and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback"). Update the plan if approved.
 
 ### 4. Spawn `coder` — multi-step dispatch
 
@@ -185,7 +185,7 @@ Output path: agent-artifacts/reviews/code-review-{slug}.md
 
 Plus pointers to the changed files (from coder-outcome files-touched lists) and any relevant plan context.
 
-All instances in the swarm can be spawned as parallel Task calls. After all return, read each `code-review-{slug}.md` file and surface findings to the user. The user decides which findings to act on.
+All instances in the swarm can be spawned as parallel Task calls. After all return, read each `code-review-{slug}.md` file and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback"). The user decides which findings to act on.
 
 ### 5. Spawn `qa`
 
@@ -203,7 +203,7 @@ If a comprehensive cross-artifact consistency check is wanted, spawn `alignment-
 - `agent-artifacts/feedback/coder/implementation-divergences-*.md` (if any)
 - The actual source/test/doc files referenced by the outcomes
 
-After it returns, read `agent-artifacts/reviews/alignment-review.md` and surface findings to the user.
+After it returns, read `agent-artifacts/reviews/alignment-review.md` and surface findings to the user per the reviewer-feedback protocol (see "Surfacing reviewer feedback").
 
 ### 8. Report completion
 
@@ -276,6 +276,15 @@ Use `Explore` agents for codebase discovery at any point in the lifecycle — pl
 - Talk to the user in normal conversation. There is no separate "ask user" tool; you are already in the conversation when invoked.
 - Sub-agents you spawn cannot ask the user mid-execution. If a worker needs clarification it sets `needs-clarification: true` in its outcome header and lists the questions; you surface them.
 - Inter-agent messages are summary-only — full context lives on disk.
+
+### Surfacing reviewer feedback
+
+When presenting findings from any reviewer agent (`plan-reviewer`, `code-reviewer`, `alignment-reviewer`) to the user, follow this protocol for **every** finding:
+
+1. **Full context.** Do not relay findings as bare titles or one-liners. For each issue, explain *what* the reviewer flagged, *where* in the codebase or plan it applies (file paths, line ranges, plan sections), and *why* it matters — enough that the user can fully understand the problem without needing to read the raw review file themselves.
+2. **Resolution avenues.** For every finding, present one or more concrete resolution paths. Pull from the reviewer's own suggestions first, then supplement with your own ideas when the reviewer's suggestions are absent, incomplete, or when you see alternatives the reviewer did not consider. Label the source clearly ("the reviewer suggests…" vs. "alternatively, we could…") so the user can weigh each option on its merits.
+
+The user decides which findings to act on and which resolution to pursue. Never silently skip, collapse, or downplay a finding — if a reviewer raised it, the user sees it in full.
 
 ## Boundaries
 
