@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scripts/install.mjs
+// setup/install.mjs
 //
 // Wires this meta-template repo into the user's ~/.claude/ via symlinks so
 // that pulling new commits in the repo auto-propagates to Claude Code.
@@ -10,13 +10,12 @@
 //   2. Directory: <repo>/scripts/                  ->  ~/.claude/agentic-scaffold/
 //      (one link, so future scripts/ additions auto-publish)
 //   3. Per-file: <repo>/.claude/commands/*.md      ->  ~/.claude/commands/<basename>
-//      (per-file because ~/.claude/commands/ may already host unrelated commands)
+//      (only files listed in COMMAND_INCLUDE are symlinked; local-only commands are excluded)
 //   4. Directory: <repo>/.claude/agents/skills/agentic-template/  ->  ~/.claude/agents/skills/agentic-template/
 //      (one link for the framework namespace, so future skills/scopes auto-publish)
 //
 // Subcommands:
 //   install    Create both kinds of symlinks.
-//   uninstall  Remove only links this script created (target must resolve into repo).
 //   status     Read-only report of current install state.
 //
 // Flags:
@@ -45,6 +44,12 @@ const SCAFFOLD_LINK_NAME = 'agentic-scaffold';
 const SKILLS_NAMESPACE = 'agentic-template';
 const AGENT_FILE_SUFFIX = '.md';
 const COMMAND_FILE_SUFFIX = '.md';
+
+// Allowlist of command filenames that are symlinked globally into ~/.claude/commands/.
+// Commands in .claude/commands/ that are NOT in this list (e.g. install.md, uninstall.md)
+// are repo-local only — they must not leak to the user's global Claude environment.
+// When adding a new globally-visible command, add its filename here.
+const COMMAND_INCLUDE = ['setup-agentic-scaffold.md'];
 
 function parseArgs(argv) {
   const args = {
@@ -81,7 +86,7 @@ function parseArgs(argv) {
 }
 
 function printUsage() {
-  console.error('usage: install.mjs <install|uninstall|status> [--target=<dir>] [--dry-run] [--force]');
+  console.error('usage: install.mjs <install|status> [--target=<dir>] [--dry-run] [--force]');
 }
 
 async function exists(p) {
@@ -143,7 +148,7 @@ function symlinkType(sourcePath, isDir) {
 // Developer Mode / admin this fails with EPERM.
 async function probeFileSymlinkSupport(targetDir, dryRun) {
   if (process.platform !== 'win32') return;
-  const probeSource = path.join(REPO_ROOT, 'scripts', 'install.mjs');
+  const probeSource = __filename;
   const probeLink = path.join(targetDir, `.install-probe-${process.pid}`);
   try {
     if (dryRun) return;
@@ -172,7 +177,9 @@ async function listSourceAgents() {
 async function listSourceCommands() {
   if (!(await exists(SOURCE_COMMANDS_DIR))) return [];
   const entries = await fs.readdir(SOURCE_COMMANDS_DIR);
-  return entries.filter((f) => f.endsWith(COMMAND_FILE_SUFFIX)).sort();
+  return entries
+    .filter((f) => f.endsWith(COMMAND_FILE_SUFFIX) && COMMAND_INCLUDE.includes(f))
+    .sort();
 }
 
 // Create a symlink from `linkPath` -> `sourcePath`. Returns true if created/changed.
@@ -247,69 +254,6 @@ async function ensureDefaultAgent(settingsPath, dryRun) {
   return true;
 }
 
-async function removeDefaultAgent(settingsPath, dryRun) {
-  if (!(await exists(settingsPath))) {
-    console.log(`no settings:      ${settingsPath}`);
-    return false;
-  }
-  let raw;
-  try {
-    raw = await fs.readFile(settingsPath, 'utf8');
-  } catch {
-    return false;
-  }
-  let settings;
-  try {
-    settings = JSON.parse(raw);
-  } catch {
-    console.log(`unparseable:      ${settingsPath}, skipped`);
-    return false;
-  }
-  if (settings.agent !== 'planner') {
-    console.log(`agent not ours:   ${settingsPath} -> agent = ${JSON.stringify(settings.agent)}`);
-    return false;
-  }
-  if (dryRun) {
-    console.log(`would remove:     ${settingsPath} -> agent key`);
-    return true;
-  }
-  delete settings.agent;
-  await fs.writeFile(settingsPath, JSON.stringify(settings, null, '\t') + '\n');
-  console.log(`removed:          ${settingsPath} -> agent key`);
-  return true;
-}
-
-// Remove a symlink only if it points into the repo. Never deletes real files.
-async function removeOurSymlink(linkPath, dryRun) {
-  const st = await lstatOrNull(linkPath);
-  if (!st) {
-    console.log(`not present:      ${linkPath}`);
-    return false;
-  }
-  if (!st.isSymbolicLink()) {
-    console.log(`real file, kept:  ${linkPath}`);
-    return false;
-  }
-  let resolved;
-  try {
-    resolved = await resolveSymlinkTarget(linkPath);
-  } catch {
-    console.log(`unreadable, kept: ${linkPath}`);
-    return false;
-  }
-  if (!isInsideRepo(resolved)) {
-    console.log(`foreign, kept:    ${linkPath} -> ${resolved}`);
-    return false;
-  }
-  if (dryRun) {
-    console.log(`would remove:     ${linkPath}`);
-    return true;
-  }
-  await fs.unlink(linkPath);
-  console.log(`removed:          ${linkPath}`);
-  return true;
-}
-
 async function cmdInstall(target, dryRun, force) {
   const agentsTargetDir = path.join(target, 'agents');
   const commandsTargetDir = path.join(target, 'commands');
@@ -322,17 +266,45 @@ async function cmdInstall(target, dryRun, force) {
     for (const entry of await fs.readdir(agentsTargetDir)) {
       const entryPath = path.join(agentsTargetDir, entry);
       try {
-        const rawTarget = await fs.readlink(entryPath);
+        await fs.stat(entryPath); // resolves fine → link is live, skip
+      } catch {
+        // Dangling symlink. Check if it pointed into our repo.
+        let resolvedTarget;
         try {
-          await fs.stat(entryPath); // resolves fine → link is live, skip
+          resolvedTarget = await resolveSymlinkTarget(entryPath);
         } catch {
-          // Dangling symlink. Check if the raw target was inside our repo.
-          if (rawTarget.startsWith(SOURCE_AGENTS_DIR + path.sep) || rawTarget === SOURCE_AGENTS_DIR) {
-            if (!dryRun) await fs.unlink(entryPath);
-            console.log(`removed stale agent link: ${entryPath} -> ${rawTarget}`);
-          }
+          continue; // readlink itself failed (broken/unreadable link), skip
         }
-      } catch { /* not a symlink, skip */ }
+        if (isInsideRepo(resolvedTarget)) {
+          if (!dryRun) await fs.unlink(entryPath);
+          console.log(`removed stale agent link: ${entryPath} -> ${resolvedTarget}`);
+        }
+      }
+    }
+  }
+
+  // Clean up dangling symlinks in the commands directory (handles command removals/allowlist changes).
+  // NOTE: This only catches truly dangling symlinks (target file deleted).
+  // If a command is removed from COMMAND_INCLUDE but the source .md still
+  // exists, the stale global symlink persists until uninstall + reinstall.
+  if (await exists(commandsTargetDir)) {
+    for (const entry of await fs.readdir(commandsTargetDir)) {
+      const entryPath = path.join(commandsTargetDir, entry);
+      try {
+        await fs.stat(entryPath); // resolves fine → link is live, skip
+      } catch {
+        // Dangling symlink. Check if it pointed into our repo.
+        let resolvedTarget;
+        try {
+          resolvedTarget = await resolveSymlinkTarget(entryPath);
+        } catch {
+          continue; // readlink itself failed (broken/unreadable link), skip
+        }
+        if (isInsideRepo(resolvedTarget)) {
+          if (!dryRun) await fs.unlink(entryPath);
+          console.log(`removed stale command link: ${entryPath} -> ${resolvedTarget}`);
+        }
+      }
     }
   }
 
@@ -366,7 +338,7 @@ async function cmdInstall(target, dryRun, force) {
     console.log(`no skills to link (source dir missing): ${SOURCE_SKILLS_DIR}`);
   }
 
-  // Per-file slash command links.
+  // Per-file slash command links (only COMMAND_INCLUDE allowlisted files).
   const commands = await listSourceCommands();
   if (commands.length === 0) {
     console.log(`no commands to link (source dir empty or missing): ${SOURCE_COMMANDS_DIR}`);
@@ -384,54 +356,6 @@ async function cmdInstall(target, dryRun, force) {
   // Default agent setting in settings.json.
   const settingsPath = path.join(target, 'settings.json');
   await ensureDefaultAgent(settingsPath, dryRun);
-}
-
-async function cmdUninstall(target, dryRun) {
-  const agentsTargetDir = path.join(target, 'agents');
-  const commandsTargetDir = path.join(target, 'commands');
-  const scaffoldLinkPath = path.join(target, SCAFFOLD_LINK_NAME);
-
-  // Per-file agent links: walk the target dir and remove any symlink pointing into the repo.
-  await removeRepoSymlinksFromDir(agentsTargetDir, 'agents', dryRun);
-
-  await removeOurSymlink(scaffoldLinkPath, dryRun);
-
-  // Skills namespace link.
-  const skillsLinkPath = path.join(agentsTargetDir, 'skills', SKILLS_NAMESPACE);
-  await removeOurSymlink(skillsLinkPath, dryRun);
-
-  // Per-file command links: same shape as agents.
-  await removeRepoSymlinksFromDir(commandsTargetDir, 'commands', dryRun);
-
-  // Default agent setting.
-  const settingsPath = path.join(target, 'settings.json');
-  await removeDefaultAgent(settingsPath, dryRun);
-}
-
-async function removeRepoSymlinksFromDir(dir, label, dryRun) {
-  if (!(await exists(dir))) {
-    console.log(`no ${label} dir:    ${dir}`);
-    return;
-  }
-  const entries = await fs.readdir(dir);
-  for (const name of entries.sort()) {
-    const linkPath = path.join(dir, name);
-    const st = await lstatOrNull(linkPath);
-    if (!st || !st.isSymbolicLink()) continue;
-    let resolved;
-    try {
-      resolved = await resolveSymlinkTarget(linkPath);
-    } catch {
-      continue;
-    }
-    if (!isInsideRepo(resolved)) continue;
-    if (dryRun) {
-      console.log(`would remove:     ${linkPath}`);
-    } else {
-      await fs.unlink(linkPath);
-      console.log(`removed:          ${linkPath}`);
-    }
-  }
 }
 
 async function cmdStatus(target) {
@@ -512,10 +436,10 @@ async function cmdStatus(target) {
   }
   console.log('');
 
-  // Commands.
+  // Commands (only COMMAND_INCLUDE allowlisted files are shown).
   const commands = await listSourceCommands();
   if (commands.length === 0) {
-    console.log(`commands source:  ${SOURCE_COMMANDS_DIR} (no *${COMMAND_FILE_SUFFIX} files)`);
+    console.log(`commands source:  ${SOURCE_COMMANDS_DIR} (no allowlisted *${COMMAND_FILE_SUFFIX} files)`);
   } else {
     console.log(`commands source:  ${SOURCE_COMMANDS_DIR}`);
     for (const name of commands) {
@@ -569,9 +493,6 @@ async function main() {
       case 'install':
         await cmdInstall(args.target, args.dryRun, args.force);
         break;
-      case 'uninstall':
-        await cmdUninstall(args.target, args.dryRun);
-        break;
       case 'status':
         await cmdStatus(args.target);
         break;
@@ -586,4 +507,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(2);
+});

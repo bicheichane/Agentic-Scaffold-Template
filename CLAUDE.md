@@ -6,14 +6,15 @@ It is **not** a workload project. There is no production tech stack, no source/t
 
 ## What lives here
 
-- `.claude/agents/` — agent definitions (one `<name>.md` per agent). Installed to `~/.claude/agents/` via `scripts/install.mjs`.
-- `.claude/commands/` — slash commands (`/setup-agentic-scaffold`). Installed to `~/.claude/commands/` via `scripts/install.mjs`.
+- `.claude/agents/` — agent definitions (one `<name>.md` per agent). Installed to `~/.claude/agents/` via `setup/install.mjs`.
+- `.claude/commands/` — slash commands. `/setup-agentic-scaffold` is symlinked to `~/.claude/commands/` for global use. `/install` and `/uninstall` are local-only (this repo).
 - `.claude/specific-agent-instructions/` — empty override stubs that demonstrate the per-agent override surface.
 - `.claude/epics/` — committed, empty (`.gitkeep`) in this repo; demonstrates where the `issue-tracker` agent writes in end-user workspaces.
-- `scripts/scaffold.mjs` — the deterministic part of `workspace-scaffold`. Cross-platform Node 18+, no deps.
-- `scripts/install.mjs` — symlinks agents, skills, scripts, and slash commands into the user's `~/.claude/`.
+- `scripts/scaffold.mjs` — deterministic scaffold for workspace onboarding. Cross-platform Node 18+, no deps.
 - `scripts/dispatch-manifest.mjs` — scoped reviewer/skill manifest for consuming agents. Called at runtime via `--scope=<consumer>`.
-- `Workspace-Scaffold/` — fixture that mirrors what `workspace-scaffold` produces in an end-user workspace.
+- `setup/install.mjs` — symlinks agents, skills, scripts, and the global slash command into the user's `~/.claude/`. Not symlinked itself — run from this repo only.
+- `setup/uninstall.mjs` — reverses `install.mjs`: removes all symlinks and resets settings. Not symlinked — run from this repo only.
+- `Workspace-Scaffold/` — fixture that mirrors what `/setup-agentic-scaffold` produces in an end-user workspace.
 - `docs/plan.md` — the merge plan (the design history of how this repo arrived at its current shape).
 
 ## Working in this repo
@@ -33,4 +34,7 @@ Neutral phrasing ("ensure", "verify", "check for") works for both review and pla
 
 ## Install workflow
 
-Clone this repo somewhere persistent, open it in Claude Code, run `/setup-agentic-scaffold`. The slash command runs `scripts/install.mjs`, which symlinks agents, skills, the `scripts/` directory, and the slash command itself into `~/.claude/`. Re-run any time to refresh the install (idempotent).
+1. Clone this repo somewhere persistent.
+2. Open it in Claude Code and run `/install`. This symlinks agents, skills, runtime scripts, and the `/setup-agentic-scaffold` command into `~/.claude/`. Re-run any time to refresh (idempotent).
+3. In any other workspace, run `/setup-agentic-scaffold` to scaffold that workspace's `.claude/` directory structure.
+4. To uninstall, open this repo in Claude Code and run `/uninstall`. This removes all symlinks and resets `~/.claude/settings.json`.

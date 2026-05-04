@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // scripts/scaffold.mjs
 //
-// Deterministic part of workspace-scaffold. Creates the .claude/
+// Deterministic scaffold for workspace onboarding. Creates the .claude/
 // directory structure, override stubs, .gitkeep for epics, and the
 // .gitignore entry for agent-artifacts. Does not touch CLAUDE.md or
-// .vscode/mcp.json — those are interactive and stay in the agent.
+// .vscode/mcp.json — those are handled interactively by the
+// /setup-agentic-scaffold command.
 //
 // Subcommands:
 //   init          Create dirs, stubs, .gitkeep, .gitignore entry, regen README.
@@ -234,4 +235,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(2);
+});
